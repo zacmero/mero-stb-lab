@@ -1,7 +1,7 @@
 """
-NET-CONFIG-005: Multi-Endpoint HTTP Server & Interceptor
-Routes configuration JSON, serves diagnostic portal (HTML/SVG), and logs all
-subsequent asset/API queries from the Ekioh embedded browser.
+NET-CONFIG-005: Dual HTTP / HTTPS Multi-Endpoint Server & Interceptor
+Handles both plaintext HTTP (8080) and TLS/HTTPS (8443) requests intercepted
+from the Sagemcom DSI74 V2 STB.
 """
 
 import sys
@@ -10,10 +10,13 @@ import mimetypes
 import datetime
 import signal
 import json
+import ssl
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+HTTP_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
 LOG_FILE = sys.argv[2] if len(sys.argv) > 2 else "/home/zacmero/projects/mero-stb-lab/captures/net-config-005.log"
+HTTPS_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 8443
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 REPO_DIR = os.path.dirname(SCRIPT_DIR)
@@ -22,6 +25,8 @@ WEB_DIR = os.path.join(REPO_DIR, "web")
 CONFIG_FILE = os.path.join(WEB_DIR, "appConfigFit.json")
 PORTAL_FILE = os.path.join(WEB_DIR, "portal.html")
 PORTAL_SVG = os.path.join(WEB_DIR, "portal.svg")
+CERT_FILE = os.path.join(WEB_DIR, "certs", "server.crt")
+KEY_FILE = os.path.join(WEB_DIR, "certs", "server.key")
 
 class ConfigServerHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
@@ -29,9 +34,10 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
     def log_request_details(self):
         now = datetime.datetime.now().isoformat()
         client = f"{self.client_address[0]}:{self.client_address[1]}"
+        proto = "HTTPS" if hasattr(self.connection, "cipher") and self.connection.cipher() else "HTTP"
         log_entry = [
             "\n" + "=" * 70,
-            f"TIMESTAMP:    {now}",
+            f"TIMESTAMP:    {now} [{proto}]",
             f"CLIENT:       {client}",
             f"REQUEST:      {self.command} {self.path} {self.request_version}",
             "--- HEADERS ---",
@@ -52,16 +58,18 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             print(f"[-] Error writing to log: {e}", flush=True)
 
     def log_message(self, format, *args):
-        # Override default stderr logging to keep output clean and controlled
         pass
 
-    def send_safe_response(self, content_bytes, content_type="text/html; charset=utf-8", status=200):
+    def send_safe_response(self, content_bytes, content_type="text/html; charset=utf-8", status=200, extra_headers=None):
         self.send_response(status)
         self.send_header("Server", "gvt-probe")
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content_bytes)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Connection", "close")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.end_headers()
         self.wfile.write(content_bytes)
 
@@ -101,21 +109,20 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
                 }
             }
             redirect_payload = json.dumps(redirect_dict, indent=2).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Server", "gvt-probe")
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Location", "http://192.168.1.97:8080/portal.html")
-            self.send_header("Content-Length", str(len(redirect_payload)))
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(redirect_payload)
+            self.send_safe_response(
+                redirect_payload,
+                content_type="application/json; charset=utf-8",
+                extra_headers={"Location": "http://192.168.1.97:8080/portal.html"}
+            )
             return
 
         # Route 1: Application configuration JSON
         if "appConfig" in clean_path or clean_path.endswith(".json"):
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, "rb") as f:
+            cfg_path = os.path.join(WEB_DIR, "tv-config", "appConfigFit.json")
+            if not os.path.exists(cfg_path):
+                cfg_path = CONFIG_FILE
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "rb") as f:
                     content = f.read()
             else:
                 content = b'{"status":"ok","code":0}\n'
@@ -125,6 +132,8 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
         # Route 1B: Mirada highlights XML
         if "highlights" in clean_path or clean_path.endswith(".xml"):
             hl_file = os.path.join(WEB_DIR, "mirada1-destaques", "highlights_config.xml")
+            if not os.path.exists(hl_file):
+                hl_file = os.path.join(WEB_DIR, "highlights_config.xml")
             if os.path.exists(hl_file):
                 with open(hl_file, "rb") as f:
                     content = f.read()
@@ -167,42 +176,80 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             return
 
         # Route 5: Catch-all fallback for unknown paths
-        content = b'{"status":"ok","received":true,"endpoint":"' + self.path.encode("utf-8") + b'"}\n'
+        content = json.dumps({
+            "status": "ok",
+            "code": 0,
+            "received": True,
+            "endpoint": self.path,
+            "url": "http://192.168.1.97:8080/portal.html"
+        }, indent=2).encode("utf-8")
         self.send_safe_response(content, "application/json; charset=utf-8")
 
     def do_POST(self):
         self.log_request_details()
         backup_cfg = os.path.join(WEB_DIR, "tv-config", "backupIpConfig.json")
-        if "backupIpConfig" in self.path and os.path.exists(backup_cfg):
+        if not os.path.exists(backup_cfg):
+            backup_cfg = os.path.join(WEB_DIR, "backupIpConfig.json")
+        if ("backupIpConfig" in self.path or "appConfig" in self.path) and os.path.exists(backup_cfg):
             with open(backup_cfg, "rb") as f:
                 content = f.read()
         else:
-            content = b'{"status":"ok","ack":true}\n'
+            content = b'{"status":"ok","code":0,"ack":true}\n'
         self.send_safe_response(content, "application/json; charset=utf-8")
 
-server = None
+http_server = None
+https_server = None
+
 def sigterm_handler(signum, frame):
-    global server
-    if server:
-        server.server_close()
+    global http_server, https_server
+    if http_server:
+        http_server.server_close()
+    if https_server:
+        https_server.server_close()
     sys.exit(0)
 
 def run():
-    global server
+    global http_server, https_server
     signal.signal(signal.SIGTERM, sigterm_handler)
-    server = HTTPServer(("0.0.0.0", PORT), ConfigServerHandler)
-    print(f"[*] NET-CONFIG-005 server listening on 0.0.0.0:{PORT}", flush=True)
+
+    http_server = HTTPServer(("0.0.0.0", HTTP_PORT), ConfigServerHandler)
+    print(f"[*] HTTP server listening on  0.0.0.0:{HTTP_PORT}", flush=True)
+
+    if os.path.exists(CERT_FILE) and os.path.exists(KEY_FILE):
+        https_server = HTTPServer(("0.0.0.0", HTTPS_PORT), ConfigServerHandler)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
+        https_server.socket = ctx.wrap_socket(https_server.socket, server_side=True)
+        print(f"[*] HTTPS server listening on 0.0.0.0:{HTTPS_PORT}", flush=True)
+    else:
+        print("[-] Warning: TLS certificates not found, HTTPS disabled.", flush=True)
+
     print(f"[*] Serving config: {CONFIG_FILE}", flush=True)
     print(f"[*] Serving portal: {PORTAL_FILE}", flush=True)
     print(f"[*] Serving SVG:    {PORTAL_SVG}", flush=True)
     print(f"[*] Logging requests to: {LOG_FILE}", flush=True)
+
+    threads = []
+    t_http = threading.Thread(target=http_server.serve_forever, daemon=True)
+    t_http.start()
+    threads.append(t_http)
+
+    if https_server:
+        t_https = threading.Thread(target=https_server.serve_forever, daemon=True)
+        t_https.start()
+        threads.append(t_https)
+
     try:
-        server.serve_forever()
+        for t in threads:
+            t.join()
     except KeyboardInterrupt:
         pass
     finally:
-        server.server_close()
-        print("[*] Server shut down cleanly.", flush=True)
+        if http_server:
+            http_server.server_close()
+        if https_server:
+            https_server.server_close()
+        print("[*] Dual server shut down cleanly.", flush=True)
 
 if __name__ == "__main__":
     run()
