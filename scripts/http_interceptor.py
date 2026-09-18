@@ -92,27 +92,28 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             redirect_dict = {
                 "status": "ok",
                 "code": 0,
-                "url": "http://192.168.1.97:8080/portal.html",
-                "redirect": "http://192.168.1.97:8080/portal.html",
-                "redirectUrl": "http://192.168.1.97:8080/portal.html",
-                "portalUrl": "http://192.168.1.97:8080/portal.html",
-                "vodUrl": "http://192.168.1.97:8080/portal.html",
-                "target": "http://192.168.1.97:8080/portal.html",
-                "location": "http://192.168.1.97:8080/portal.html",
-                "destination": "http://192.168.1.97:8080/portal.html",
+                "url": "/portal.html",
+                "redirect": "/portal.html",
+                "redirectUrl": "/portal.html",
+                "portalUrl": "/portal.html",
+                "vodUrl": "/portal.html",
+                "target": "/portal.html",
+                "location": "/portal.html",
+                "destination": "/portal.html",
                 "result": {
-                    "url": "http://192.168.1.97:8080/portal.html",
+                    "url": "/portal.html",
                     "status": "ok"
                 },
                 "data": {
-                    "url": "http://192.168.1.97:8080/portal.html"
+                    "url": "/portal.html"
                 }
             }
             redirect_payload = json.dumps(redirect_dict, indent=2).encode("utf-8")
             self.send_safe_response(
                 redirect_payload,
                 content_type="application/json; charset=utf-8",
-                extra_headers={"Location": "http://192.168.1.97:8080/portal.html"}
+                status=302,
+                extra_headers={"Location": "/portal.html"}
             )
             return
 
