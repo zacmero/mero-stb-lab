@@ -9,6 +9,7 @@ import os
 import mimetypes
 import datetime
 import signal
+import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
@@ -77,6 +78,39 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
         self.log_request_details()
 
         clean_path = self.path.split("?")[0].lstrip("/")
+
+        # Route 0: Bussola / Interactive VOD redirect
+        if "bussola" in clean_path or "redirect" in clean_path:
+            redirect_dict = {
+                "status": "ok",
+                "code": 0,
+                "url": "http://192.168.1.97:8080/portal.html",
+                "redirect": "http://192.168.1.97:8080/portal.html",
+                "redirectUrl": "http://192.168.1.97:8080/portal.html",
+                "portalUrl": "http://192.168.1.97:8080/portal.html",
+                "vodUrl": "http://192.168.1.97:8080/portal.html",
+                "target": "http://192.168.1.97:8080/portal.html",
+                "location": "http://192.168.1.97:8080/portal.html",
+                "destination": "http://192.168.1.97:8080/portal.html",
+                "result": {
+                    "url": "http://192.168.1.97:8080/portal.html",
+                    "status": "ok"
+                },
+                "data": {
+                    "url": "http://192.168.1.97:8080/portal.html"
+                }
+            }
+            redirect_payload = json.dumps(redirect_dict, indent=2).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Server", "gvt-probe")
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Location", "http://192.168.1.97:8080/portal.html")
+            self.send_header("Content-Length", str(len(redirect_payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(redirect_payload)
+            return
 
         # Route 1: Application configuration JSON
         if "appConfig" in clean_path or clean_path.endswith(".json"):

