@@ -122,3 +122,36 @@ When the server responded with an HTTP 302 pointing to `/portal.svg`, the client
 **Manual Single-Case Differential Trigger via Remote Control:**
 Because the receiver only queries `/bussola/redirect` when the user actively presses "Vivo Play" or "Menu", autonomous passive waiting yields `UNTESTED`.
 The single justified next experiment is to lock the harness to **CASE-01-BUSSOLA-URL**, prompt the user for **one** press of "Vivo Play", and monitor `experiment_transactions.jsonl` for a 30-second window. If negative, advance one-by-one to CASE-02 through CASE-08 with a single button press per test.
+
+
+---
+
+## 7. Safety Incident / Harness Correction (2026-09-18)
+
+After the Phase 1 campaign, the original harness caused a temporary LAN outage.
+
+### Root cause
+`run_net_config_005.sh` supplied the ARP redirector with every address from
+`192.168.1.128` through `192.168.1.160`. During cleanup, the old
+`arp_spoofer.py` then emitted restoration frames that asserted each of those
+addresses belonged to the single Sagemcom STB MAC (`68:15:90:6b:81:96`).
+
+That meant unrelated DHCP clients inside the range could be incorrectly associated
+with the STB MAC in the gateway's ARP cache, breaking return traffic to those clients.
+
+### Recovery observed
+Disconnecting the STB/host from the LAN and power-cycling the router immediately
+restored connectivity, consistent with volatile ARP-cache corruption rather than a
+persistent router configuration change.
+
+### Mandatory correction
+The unsafe range-based design is retired. Future runs must:
+- resolve exactly one live STB IP from the known STB MAC;
+- abort on zero or multiple candidate IPs;
+- poison only STB <-> gateway;
+- restore only the authentic STB/gateway bindings;
+- require explicit human arming;
+- verify gateway reachability after cleanup.
+
+See `AGENTS.md` and the hardened `scripts/arp_spoofer.py` /
+`scripts/run_net_config_005.sh` before any further live test.
