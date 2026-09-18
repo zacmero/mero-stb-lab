@@ -88,13 +88,24 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             self.send_safe_response(content, "application/json; charset=utf-8")
             return
 
+        # Route 1B: Mirada highlights XML
+        if "highlights" in clean_path or clean_path.endswith(".xml"):
+            hl_file = os.path.join(WEB_DIR, "mirada1-destaques", "highlights_config.xml")
+            if os.path.exists(hl_file):
+                with open(hl_file, "rb") as f:
+                    content = f.read()
+            else:
+                content = b'<?xml version="1.0" encoding="utf-8"?><highlights><highlight id="1"><title>HELLO FROM THE GH05T</title></highlight></highlights>'
+            self.send_safe_response(content, "application/xml; charset=utf-8")
+            return
+
         # Route 2: Static file from web/ directory if it exists
         local_target = os.path.join(WEB_DIR, clean_path)
         if clean_path and os.path.isfile(local_target):
             mime, _ = mimetypes.guess_type(local_target)
             if not mime:
                 mime = "text/plain; charset=utf-8"
-            elif mime.startswith("text/") or mime in ("application/javascript", "image/svg+xml"):
+            elif mime.startswith("text/") or mime in ("application/javascript", "image/svg+xml", "application/xml"):
                 mime += "; charset=utf-8"
             with open(local_target, "rb") as f:
                 content = f.read()
@@ -127,7 +138,12 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.log_request_details()
-        content = b'{"status":"ok","ack":true}\n'
+        backup_cfg = os.path.join(WEB_DIR, "tv-config", "backupIpConfig.json")
+        if "backupIpConfig" in self.path and os.path.exists(backup_cfg):
+            with open(backup_cfg, "rb") as f:
+                content = f.read()
+        else:
+            content = b'{"status":"ok","ack":true}\n'
         self.send_safe_response(content, "application/json; charset=utf-8")
 
 server = None

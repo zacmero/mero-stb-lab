@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<highlights version="1.0">
+  <highlight id="1" name="HELLO FROM THE GH05T">
+    <title>HELLO FROM THE GH05T</title>
+    <name>HELLO FROM THE GH05T</name>
+    <channel>HELLO FROM THE GH05T</channel>
+    <description>Mero STB Lab Diagnostic Injection</description>
+    <url>http://192.168.1.97:8080/portal.html</url>
+    <link>http://192.168.1.97:8080/portal.html</link>
+  </highlight>
+</highlights>

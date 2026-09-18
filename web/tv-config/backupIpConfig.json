@@ -1,0 +1,13 @@
+{
+  "status": "ok",
+  "code": 0,
+  "backupServers": [
+    "192.168.1.97:8080"
+  ],
+  "portalUrl": "http://192.168.1.97:8080/portal.html",
+  "portal": "http://192.168.1.97:8080/portal.html",
+  "portalSvg": "http://192.168.1.97:8080/portal.svg",
+  "highlightsUrl": "http://192.168.1.97:8080/mirada1-destaques/highlights_config.xml",
+  "miradaUrl": "http://192.168.1.97:8080",
+  "server": "http://192.168.1.97:8080"
+}
