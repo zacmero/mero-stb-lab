@@ -218,6 +218,14 @@ def run():
     if os.path.exists(CERT_FILE) and os.path.exists(KEY_FILE):
         https_server = HTTPServer(("0.0.0.0", HTTPS_PORT), ConfigServerHandler)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        try:
+            ctx.minimum_version = ssl.TLSVersion.TLSv1
+        except Exception:
+            pass
+        try:
+            ctx.set_ciphers("ALL:@SECLEVEL=0")
+        except Exception:
+            pass
         ctx.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
         https_server.socket = ctx.wrap_socket(https_server.socket, server_side=True)
         print(f"[*] HTTPS server listening on 0.0.0.0:{HTTPS_PORT}", flush=True)
