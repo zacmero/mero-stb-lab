@@ -9,8 +9,10 @@ Thumbs.db
 
 # Tooling and scratch
 scratch/
+.local/
 *.log
 *.tmp
+*.pcap
 
 # Raw large firmware dumps (track hashes/extracted metadata instead)
 *.raw
