@@ -1,0 +1,17 @@
+# OS & Editor artifacts
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Tooling and scratch
+scratch/
+*.log
+*.tmp
+
+# Raw large firmware dumps (track hashes/extracted metadata instead)
+*.raw
+*.img
