@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import json
+import hashlib
 import urllib.request
 import urllib.parse
 
@@ -156,6 +157,9 @@ def activate_case_on_harness(case_data):
         print(f"[-] Failed to set case on harness: {e}")
         return False
 
+def restore_baseline():
+    activate_case_on_harness(CASES[0])
+
 def get_log_offset():
     if not os.path.exists(JSONL_LOG):
         return 0
@@ -177,14 +181,26 @@ def read_new_transactions(offset):
         new_offset = f.tell()
     return records, new_offset
 
-def evaluate_case(case_data, timeout_seconds=45):
+def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
     case_id = case_data["case_id"]
     endpoint = case_data["endpoint"]
     expected_marker = case_data.get("expected_marker")
     
+    # Calculate expected response body SHA-256
+    if endpoint == "/bussola/redirect":
+        exp_body_str = case_data.get("bussola_body", "")
+    else:
+        exp_body_str = case_data.get("appconfig_body", "")
+    expected_resp_sha256 = hashlib.sha256(exp_body_str.encode("utf-8")).hexdigest()
+
+    target_host = "191.32.31.251"
+    target_method = "GET"
+    target_path_prefix = endpoint.split("?")[0]
+
     print(f"\n{'='*70}")
     print(f" EXECUTING CASE: {case_id}")
-    print(f" Target Endpoint: {endpoint}")
+    print(f" Target Endpoint: {target_method} {target_host}{target_path_prefix}")
+    print(f" Expected SHA256: {expected_resp_sha256[:16]}...")
     print(f" Provenance:      {case_data['provenance']}")
     print(f" Description:     {case_data['description']}")
     if expected_marker:
@@ -193,106 +209,165 @@ def evaluate_case(case_data, timeout_seconds=45):
 
     offset = get_log_offset()
     if not activate_case_on_harness(case_data):
-        return {"case_id": case_id, "status": "ERROR_HARNESS_UNREACHABLE"}
+        return {"case_id": case_id, "status": "ERROR_HARNESS_UNREACHABLE", "verdict": "ERROR"}
 
-    print(f"[*] Case {case_id} active on harness. Monitoring receiver for up to {timeout_seconds}s...")
-
-    start_time = time.time()
+    # Phase 1: WAITING_FOR_REQUEST (up to wait_timeout seconds)
+    print(f"[*] State: WAITING_FOR_REQUEST (up to {wait_timeout}s)...")
+    wait_start = time.time()
     response_delivered = False
-    marker_hit = False
-    script_executed = False
     delivered_tx = None
 
-    while time.time() - start_time < timeout_seconds:
+    while time.time() - wait_start < wait_timeout:
         txs, offset = read_new_transactions(offset)
         for tx in txs:
-            src = tx.get("source")
-            path = tx.get("path", "")
-            tx_case = tx.get("case_id")
+            if tx.get("source") != "RECEIVER_HW":
+                continue
             
-            # We ONLY credit RECEIVER_HW
-            if src == "RECEIVER_HW":
-                # Check if target endpoint was exercised
-                if path.startswith(endpoint.split("?")[0]):
+            # Require exact target Host + method + path prefix
+            if (tx.get("method") == target_method and 
+                tx.get("host") == target_host and 
+                tx.get("path", "").startswith(target_path_prefix)):
+                
+                # Require matching case_id and expected response body SHA-256
+                tx_case = tx.get("case_id")
+                tx_sha = tx.get("response_body_sha256")
+                
+                if tx_case == case_id and tx_sha == expected_resp_sha256:
                     response_delivered = True
                     delivered_tx = tx
-                    print(f"  [+] RECEIVER EXERCISED {endpoint}! Client: {tx.get('client')}, Status: {tx.get('response_status')}")
+                    print(f"\n  [+] MATCHING REQUEST DELIVERED from {tx.get('client')}:")
+                    print(f"      Path:        {tx.get('path')}")
+                    print(f"      Status:      HTTP {tx.get('response_status')}")
+                    print(f"      Case ID:     {tx_case}")
+                    print(f"      Body SHA256: {tx_sha[:16]}... (MATCHED)")
+                    break
+                else:
+                    print(f"  [-] Receiver request matched path but case/SHA mismatch: case={tx_case}, sha={tx_sha}")
 
-                # Check if marker URL was fetched
-                if expected_marker and path == expected_marker:
-                    marker_hit = True
-                    print(f"  [*** EVIDENCE HIT ***] Marker {expected_marker} fetched by RECEIVER_HW!")
-
-                # Check if script callback was executed
-                if path.startswith("/report/script_exec"):
-                    script_executed = True
-                    print(f"  [*** CRITICAL HIT ***] Script callback executed by RECEIVER_HW!")
-
-        if response_delivered and (marker_hit or not expected_marker or time.time() - start_time > 15):
-            # If marker was hit, or if baseline (no marker), or if sufficient wait after delivery
+        if response_delivered:
             break
-        time.sleep(1.0)
+        time.sleep(0.5)
+
+    if not response_delivered:
+        print(f"[-] WAITING_FOR_REQUEST timed out ({wait_timeout}s). No matching request received.")
+        return {
+            "case_id": case_id,
+            "endpoint": endpoint,
+            "provenance": case_data["provenance"],
+            "delivered": False,
+            "marker_expected": expected_marker,
+            "marker_hit": False,
+            "marker_type": None,
+            "script_executed": False,
+            "verdict": "UNTESTED",
+            "tx_details": None
+        }
+
+    # Phase 2: OBSERVING_AFTER_RESPONSE (allow full observe_timeout seconds)
+    print(f"\n[*] State: OBSERVING_AFTER_RESPONSE. Allowing full {observe_timeout}s for downstream behavior...")
+    obs_start = time.time()
+    marker_hit = False
+    marker_type = None
+    script_executed = False
+    marker_tx = None
+
+    is_302_case = (case_data.get("bussola_status") == 302 or case_id.endswith("-302"))
+
+    while time.time() - obs_start < observe_timeout:
+        txs, offset = read_new_transactions(offset)
+        for tx in txs:
+            if tx.get("source") != "RECEIVER_HW":
+                continue
+
+            path = tx.get("path", "")
+            # Attribute marker to correct case
+            if expected_marker and path == expected_marker:
+                marker_hit = True
+                marker_tx = tx
+                marker_type = "HTTP_302" if is_302_case else "JSON_FIELD"
+                print(f"  [*** EVIDENCE HIT ***] Marker {expected_marker} ({marker_type}) fetched by RECEIVER_HW from {tx.get('client')}!")
+
+            if path.startswith("/report/script_exec"):
+                script_executed = True
+                print(f"  [*** CRITICAL HIT ***] Script callback executed by RECEIVER_HW!")
+
+        time.sleep(0.5)
 
     # Determine verdict
-    if not response_delivered:
-        verdict = "UNTESTED (STB made no request to this endpoint)"
-    elif marker_hit and script_executed:
+    if script_executed:
         verdict = "SCRIPT_EXECUTION_DEMONSTRATED"
     elif marker_hit:
-        verdict = "MARKER_FETCHED (Candidate Accepted)"
-    elif response_delivered and not expected_marker:
-        verdict = "BASELINE_DELIVERED (Accepted without error)"
+        verdict = f"MARKER_FETCHED_{marker_type}"
+    elif expected_marker is None:
+        verdict = "DELIVERED"
     else:
         verdict = "NEGATIVE (Response delivered, candidate NOT followed)"
+
+    print(f"[*] Evaluation completed: Verdict = {verdict}")
 
     result = {
         "case_id": case_id,
         "endpoint": endpoint,
         "provenance": case_data["provenance"],
-        "delivered": response_delivered,
+        "delivered": True,
         "marker_expected": expected_marker,
         "marker_hit": marker_hit,
+        "marker_type": marker_type,
         "script_executed": script_executed,
         "verdict": verdict,
-        "tx_details": delivered_tx
+        "tx_details": delivered_tx,
+        "marker_details": marker_tx
     }
     return result
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "--single":
-        cid = sys.argv[2]
-        matching = [c for c in CASES if c["case_id"] == cid]
-        if not matching:
-            print(f"Case {cid} not found.")
-            sys.exit(1)
-        res = evaluate_case(matching[0], timeout_seconds=int(sys.argv[3]) if len(sys.argv) > 3 else 30)
-        print(json.dumps(res, indent=2))
-        return
+    try:
+        if len(sys.argv) > 1 and sys.argv[1] == "--single":
+            cid = sys.argv[2]
+            matching = [c for c in CASES if c["case_id"] == cid]
+            if not matching:
+                print(f"Case {cid} not found.")
+                sys.exit(1)
+            wait_t = int(sys.argv[3]) if len(sys.argv) > 3 else 60
+            obs_t = int(sys.argv[4]) if len(sys.argv) > 4 else 30
+            res = evaluate_case(matching[0], wait_timeout=wait_t, observe_timeout=obs_t)
+            print("\n" + "=" * 70)
+            print("SINGLE CASE RESULT:")
+            print(json.dumps(res, indent=2))
+            return
 
-    print("=" * 70)
-    print("   MERO-STB-LAB: AUTOMATED DIFFERENTIAL EXPERIMENT CAMPAIGN    ")
-    print(f"   Total Cases: {len(CASES)} | Mode: Strict Receiver Evidence")
-    print("=" * 70)
+        print("=" * 70)
+        print("   MERO-STB-LAB: AUTOMATED DIFFERENTIAL EXPERIMENT CAMPAIGN    ")
+        print(f"   Total Cases: {len(CASES)} | Mode: Strict Receiver Evidence")
+        print("=" * 70)
 
-    results = []
-    for c in CASES:
-        r = evaluate_case(c, timeout_seconds=20)
-        results.append(r)
-        # Always restore baseline between tests
-        activate_case_on_harness(CASES[0])
-        time.sleep(2)
+        results = []
+        for c in CASES:
+            r = evaluate_case(c, wait_timeout=60, observe_timeout=30)
+            results.append(r)
 
-    print("\n" + "=" * 70)
-    print("             DIFFERENTIAL CAMPAIGN RESULTS SUMMARY             ")
-    print("=" * 70)
-    print(f"{'Case ID':<26} | {'Provenance':<30} | {'Marker Hit':<10} | {'Verdict'}")
-    print("-" * 90)
-    for r in results:
-        print(f"{r['case_id']:<26} | {r['provenance'][:30]:<30} | {str(r['marker_hit']):<10} | {r['verdict']}")
+            if r["verdict"] == "UNTESTED":
+                print("\n[!] Sequence stopped: Case was UNTESTED. Will not advance through unused cases.")
+                break
 
-    with open(EVIDENCE_TABLE, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
-    print(f"\n[+] Raw results written to {EVIDENCE_TABLE}")
+            time.sleep(2)
+
+        print("\n" + "=" * 70)
+        print("             DIFFERENTIAL CAMPAIGN RESULTS SUMMARY             ")
+        print("=" * 70)
+        print(f"{'Case ID':<26} | {'Provenance':<30} | {'Marker Hit':<10} | {'Verdict'}")
+        print("-" * 90)
+        for r in results:
+            print(f"{r['case_id']:<26} | {r['provenance'][:30]:<30} | {str(r['marker_hit']):<10} | {r['verdict']}")
+
+        with open(EVIDENCE_TABLE, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2)
+        print(f"\n[+] Results written to {EVIDENCE_TABLE}")
+
+    finally:
+        print("\n[*] Restoring harness to CASE-00-BASELINE...")
+        restore_baseline()
 
 if __name__ == "__main__":
     main()
+
