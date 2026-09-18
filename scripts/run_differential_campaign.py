@@ -158,7 +158,7 @@ def activate_case_on_harness(case_data):
         return False
 
 def restore_baseline():
-    activate_case_on_harness(CASES[0])
+    return activate_case_on_harness(CASES[0])
 
 def get_log_offset():
     if not os.path.exists(JSONL_LOG):
@@ -181,8 +181,11 @@ def read_new_transactions(offset):
         new_offset = f.tell()
     return records, new_offset
 
-def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
+def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
+    case_data = dict(case_data)
     case_id = case_data["case_id"]
+    run_id = f"{case_id}-{time.time_ns()}"
+    case_data["run_id"] = run_id
     endpoint = case_data["endpoint"]
     expected_marker = case_data.get("expected_marker")
     
@@ -209,7 +212,24 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
 
     offset = get_log_offset()
     if not activate_case_on_harness(case_data):
-        return {"case_id": case_id, "status": "ERROR_HARNESS_UNREACHABLE", "verdict": "ERROR"}
+        return {
+            "case_id": case_id,
+            "run_id": run_id,
+            "endpoint": endpoint,
+            "provenance": case_data["provenance"],
+            "delivered": False,
+            "marker_expected": expected_marker,
+            "marker_hit": False,
+            "marker_type": None,
+            "script_executed": False,
+            "verdict": "ERROR",
+            "status": "ERROR_HARNESS_UNREACHABLE",
+            "tx_details": None,
+        }
+
+    if prompt:
+        print(f"READY FOR {case_id} (run_id={run_id})")
+        input(f"{prompt}\nPress Enter only after completing that action: ")
 
     # Phase 1: WAITING_FOR_REQUEST (up to wait_timeout seconds)
     print(f"[*] State: WAITING_FOR_REQUEST (up to {wait_timeout}s)...")
@@ -224,22 +244,26 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
                 continue
             
             # Require exact target Host + method + path prefix
+            tx_path = urllib.parse.urlsplit(tx.get("path", "")).path
             if (tx.get("method") == target_method and 
                 tx.get("host") == target_host and 
-                tx.get("path", "").startswith(target_path_prefix)):
+                tx_path == target_path_prefix):
                 
                 # Require matching case_id and expected response body SHA-256
                 tx_case = tx.get("case_id")
                 tx_sha = tx.get("response_body_sha256")
                 
-                if tx_case == case_id and tx_sha == expected_resp_sha256:
+                if (tx_case == case_id and tx.get("run_id") == run_id and
+                        tx_sha == expected_resp_sha256):
                     response_delivered = True
                     delivered_tx = tx
                     print(f"\n  [+] MATCHING REQUEST DELIVERED from {tx.get('client')}:")
                     print(f"      Path:        {tx.get('path')}")
                     print(f"      Status:      HTTP {tx.get('response_status')}")
                     print(f"      Case ID:     {tx_case}")
-                    print(f"      Body SHA256: {tx_sha[:16]}... (MATCHED)")
+                    print(f"      Run ID:      {run_id}")
+                    print(f"      Timestamp:   {tx.get('timestamp')}")
+                    print(f"      Body SHA256: {tx_sha} (MATCHED)")
                     break
                 else:
                     print(f"  [-] Receiver request matched path but case/SHA mismatch: case={tx_case}, sha={tx_sha}")
@@ -252,6 +276,7 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
         print(f"[-] WAITING_FOR_REQUEST timed out ({wait_timeout}s). No matching request received.")
         return {
             "case_id": case_id,
+            "run_id": run_id,
             "endpoint": endpoint,
             "provenance": case_data["provenance"],
             "delivered": False,
@@ -279,15 +304,18 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
             if tx.get("source") != "RECEIVER_HW":
                 continue
 
-            path = tx.get("path", "")
+            path = urllib.parse.urlsplit(tx.get("path", "")).path
             # Attribute marker to correct case
-            if expected_marker and path == expected_marker:
+            if (expected_marker and path == expected_marker and
+                    tx.get("case_id") == case_id and tx.get("run_id") == run_id):
                 marker_hit = True
                 marker_tx = tx
                 marker_type = "HTTP_302" if is_302_case else "JSON_FIELD"
                 print(f"  [*** EVIDENCE HIT ***] Marker {expected_marker} ({marker_type}) fetched by RECEIVER_HW from {tx.get('client')}!")
+                print(f"      Timestamp: {tx.get('timestamp')} | Run ID: {run_id}")
 
-            if path.startswith("/report/script_exec"):
+            if (path == "/report/script_exec" and tx.get("case_id") == case_id and
+                    tx.get("run_id") == run_id):
                 script_executed = True
                 print(f"  [*** CRITICAL HIT ***] Script callback executed by RECEIVER_HW!")
 
@@ -307,6 +335,7 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
 
     result = {
         "case_id": case_id,
+        "run_id": run_id,
         "endpoint": endpoint,
         "provenance": case_data["provenance"],
         "delivered": True,
@@ -323,6 +352,9 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30):
 def main():
     try:
         if len(sys.argv) > 1 and sys.argv[1] == "--single":
+            if len(sys.argv) < 3:
+                print("--single requires CASE_ID", file=sys.stderr)
+                sys.exit(2)
             cid = sys.argv[2]
             matching = [c for c in CASES if c["case_id"] == cid]
             if not matching:
@@ -336,24 +368,29 @@ def main():
             print(json.dumps(res, indent=2))
             return
 
-        print("=" * 70)
-        print("   MERO-STB-LAB: AUTOMATED DIFFERENTIAL EXPERIMENT CAMPAIGN    ")
-        print(f"   Total Cases: {len(CASES)} | Mode: Strict Receiver Evidence")
-        print("=" * 70)
+        if len(sys.argv) > 1 and sys.argv[1] != "--interactive-three":
+            print("Usage: run_differential_campaign.py [--interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
+            sys.exit(2)
 
+        sequence = [
+            (CASES[0], "Open Vivo Play once."),
+            (CASES[9], "Close and reopen Vivo Play."),
+            (CASES[1], "Close and reopen Vivo Play."),
+        ]
+        print("MERO-STB-LAB: INTERACTIVE THREE-CASE SESSION")
         results = []
-        for c in CASES:
-            r = evaluate_case(c, wait_timeout=60, observe_timeout=30)
-            results.append(r)
-
-            if r["verdict"] == "UNTESTED":
-                print("\n[!] Sequence stopped: Case was UNTESTED. Will not advance through unused cases.")
+        for case_data, prompt in sequence:
+            if not restore_baseline():
+                print("[-] Could not restore baseline; stopping.", file=sys.stderr)
+                break
+            result = evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=prompt)
+            results.append(result)
+            if result["verdict"] in ("UNTESTED", "ERROR"):
+                print("[!] Sequence stopped; no later case was activated.")
                 break
 
-            time.sleep(2)
-
         print("\n" + "=" * 70)
-        print("             DIFFERENTIAL CAMPAIGN RESULTS SUMMARY             ")
+        print("             INTERACTIVE SESSION RESULTS SUMMARY              ")
         print("=" * 70)
         print(f"{'Case ID':<26} | {'Provenance':<30} | {'Marker Hit':<10} | {'Verdict'}")
         print("-" * 90)
@@ -370,4 +407,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -32,7 +32,7 @@ KEY_FILE = os.path.join(REPO_DIR, "web", "certs", "server.key")
 
 # Global active case state
 CURRENT_CASE = {
-    "case_id": "BASELINE",
+    "case_id": "CASE-00-BASELINE",
     "description": "Repeatable baseline - minimal JSON, no navigation fields, no redirects",
     "bussola_status": 200,
     "bussola_headers": {"Content-Type": "application/json; charset=utf-8"},
@@ -114,6 +114,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             "timestamp": now,
             "source": source,
             "case_id": case_id,
+            "run_id": get_active_case().get("run_id"),
             "client": f"{client_ip}:{client_port}",
             "method": method,
             "host": host,

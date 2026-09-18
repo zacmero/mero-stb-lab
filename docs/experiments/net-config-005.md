@@ -24,8 +24,8 @@ RESULT: NO NEW CAPABILITY DEMONSTRATED.
 
 2. TLS HARDWARE CONSTRAINTS:
    Analysis of raw PCAP frames confirms the receiver rejects self-signed certificates
-   with TLS Alert 48 (unknown_ca). Hardcoded operator CA certificates in firmware
-   prevent HTTPS MITM without certificate store extraction.
+   with TLS Alert 48 (unknown_ca). This proves that the receiver did not trust the
+   presented certificate chain; it does not establish an immutable or operator-only CA store.
 
 3. DISSECTION OF HISTORICAL "REDIRECTION":
    Inspection of prior sessions revealed that requests for `/portal.svg` were
@@ -76,13 +76,13 @@ The campaign tests single candidate properties in HTTP 200 JSON responses withou
 ### 3.2 TLS Cryptographic Enforcement
 - Extraction of TLS alert records from `captures/net-config-005.pcap` demonstrates hardware rejection:
   ```text
-  Frame Timestamp: 1789708881.384119
-  Source: 192.168.1.139:46382 -> Destination: 191.32.31.251:8443
+  Frame Timestamp: 1789769033.322180
+  Source: 192.168.1.146:56069 -> Destination: 191.32.31.251:443
   Type: Alert (21)
   Level: Fatal (2)
   Description: Unknown CA (48)
   ```
-- **Conclusion:** Hardware root store is immutable over network without physical flash read.
+- **Conclusion:** TLS alert `unknown_ca` proves that the presented certificate chain was not trusted. The available evidence does not establish whether the trust store is immutable, hardware-backed, or operator-only.
 
 ### 3.3 Root Cause of Previous "Connection Error"
 Captured XHR headers demonstrate that when entering interactive VOD ("Vivo Play"), the browser issues an asynchronous XMLHttpRequest expecting JSON:
@@ -93,7 +93,7 @@ Host: 191.32.31.251
 Connection: Keep-Alive
 Accept: application/json, text/plain, */*
 ```
-When the server responded with an HTTP 302 pointing to `/portal.svg`, the client followed the redirect and received SVG XML markup. The internal JavaScript routine attempted `JSON.parse()` on the markup, raised a SyntaxError, caught the exception, and displayed the error banner.
+When the server responded with an HTTP 302 pointing to `/portal.svg`, the client followed the redirect and received SVG XML markup. A subsequent JSON parsing failure is a hypothesis consistent with the observed request headers and error banner; no source or runtime trace currently establishes the exact `JSON.parse()` exception.
 
 ---
 

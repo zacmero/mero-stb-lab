@@ -30,7 +30,7 @@ def parse_pcap_tls(pcap_path):
         sp, dp = struct.unpack("!HH", tcp_hdr[:4])
         data_off = ((tcp_hdr[12] >> 4) & 0x0f) * 4
         payload = tcp_hdr[data_off:]
-        if (sp == 443 or dp == 443) and len(payload) >= 5:
+        if (sp in (443, 8443) or dp in (443, 8443)) and len(payload) >= 5:
             content_type = payload[0]
             version = struct.unpack("!H", payload[1:3])[0]
             length = struct.unpack("!H", payload[3:5])[0]
