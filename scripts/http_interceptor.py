@@ -92,20 +92,20 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             redirect_dict = {
                 "status": "ok",
                 "code": 0,
-                "url": "/portal.html",
-                "redirect": "/portal.html",
-                "redirectUrl": "/portal.html",
-                "portalUrl": "/portal.html",
-                "vodUrl": "/portal.html",
-                "target": "/portal.html",
-                "location": "/portal.html",
-                "destination": "/portal.html",
+                "url": "/portal.svg",
+                "redirect": "/portal.svg",
+                "redirectUrl": "/portal.svg",
+                "portalUrl": "/portal.svg",
+                "vodUrl": "/portal.svg",
+                "target": "/portal.svg",
+                "location": "/portal.svg",
+                "destination": "/portal.svg",
                 "result": {
-                    "url": "/portal.html",
+                    "url": "/portal.svg",
                     "status": "ok"
                 },
                 "data": {
-                    "url": "/portal.html"
+                    "url": "/portal.svg"
                 }
             }
             redirect_payload = json.dumps(redirect_dict, indent=2).encode("utf-8")
@@ -113,7 +113,7 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
                 redirect_payload,
                 content_type="application/json; charset=utf-8",
                 status=302,
-                extra_headers={"Location": "/portal.html"}
+                extra_headers={"Location": "/portal.svg"}
             )
             return
 
@@ -143,7 +143,20 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             self.send_safe_response(content, "application/xml; charset=utf-8")
             return
 
-        # Route 2: Static file from web/ directory if it exists
+        # Route 2: Diagnostic portal SVG / HTML (always serve strict SVG Tiny for Ekioh)
+        if "portal" in clean_path or clean_path == "" or clean_path.endswith(".svg") or clean_path.endswith(".html"):
+            if os.path.exists(PORTAL_SVG):
+                with open(PORTAL_SVG, "rb") as f:
+                    content = f.read()
+            elif os.path.exists(PORTAL_FILE):
+                with open(PORTAL_FILE, "rb") as f:
+                    content = f.read()
+            else:
+                content = b'<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny"><text y="20">HELLO FROM THE GH05T</text></svg>'
+            self.send_safe_response(content, "image/svg+xml; charset=utf-8")
+            return
+
+        # Route 3: Generic static file from web/ directory if it exists
         local_target = os.path.join(WEB_DIR, clean_path)
         if clean_path and os.path.isfile(local_target):
             mime, _ = mimetypes.guess_type(local_target)
@@ -156,24 +169,30 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             self.send_safe_response(content, mime)
             return
 
-        # Route 3: Diagnostic portal SVG
-        if "svg" in clean_path or clean_path.endswith(".svg"):
-            if os.path.exists(PORTAL_SVG):
-                with open(PORTAL_SVG, "rb") as f:
-                    content = f.read()
+        # Route 4B: Social / Apps mock (e.g. Facebook TV App)
+        if "facebook" in clean_path:
+            if "verifycode" in clean_path:
+                resp_data = {
+                    "status": "success",
+                    "authenticated": True,
+                    "code": "GH05T",
+                    "access_token": "gh05t_mock_token_12345",
+                    "url": "/portal.svg"
+                }
             else:
-                content = b'<svg><text>HELLO FROM THE GH05T</text></svg>'
-            self.send_safe_response(content, "image/svg+xml; charset=utf-8")
-            return
-
-        # Route 4: Diagnostic portal HTML (default for root / portal queries)
-        if "portal" in clean_path or clean_path == "" or clean_path.endswith(".html"):
-            if os.path.exists(PORTAL_FILE):
-                with open(PORTAL_FILE, "rb") as f:
-                    content = f.read()
-            else:
-                content = b"<!DOCTYPE html><html><body><h1>HELLO FROM THE GH05T</h1></body></html>"
-            self.send_safe_response(content, "text/html; charset=utf-8")
+                resp_data = {
+                    "status": "success",
+                    "code": "GH05T",
+                    "user_code": "GH05T",
+                    "verification_url": "/portal.svg",
+                    "url": "/portal.svg",
+                    "expires_in": 3600,
+                    "interval": 5
+                }
+            self.send_safe_response(
+                json.dumps(resp_data, indent=2).encode("utf-8"),
+                "application/json; charset=utf-8"
+            )
             return
 
         # Route 5: Catch-all fallback for unknown paths
@@ -182,7 +201,7 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
             "code": 0,
             "received": True,
             "endpoint": self.path,
-            "url": "http://192.168.1.97:8080/portal.html"
+            "url": "/portal.svg"
         }, indent=2).encode("utf-8")
         self.send_safe_response(content, "application/json; charset=utf-8")
 
@@ -194,6 +213,8 @@ class ConfigServerHandler(BaseHTTPRequestHandler):
         if ("backupIpConfig" in self.path or "appConfig" in self.path) and os.path.exists(backup_cfg):
             with open(backup_cfg, "rb") as f:
                 content = f.read()
+        elif "paytv-stats" in self.path or "register" in self.path:
+            content = b'{"status":"ok","code":0,"ack":true,"registered":true}\n'
         else:
             content = b'{"status":"ok","code":0,"ack":true}\n'
         self.send_safe_response(content, "application/json; charset=utf-8")

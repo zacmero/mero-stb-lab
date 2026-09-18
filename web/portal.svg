@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
   <rect width="1280" height="720" fill="#0b0f19" />
-  <rect x="140" y="100" width="1000" height="520" rx="15" fill="#111827" stroke="#00ff88" stroke-width="3" />
+  <rect x="140" y="80" width="1000" height="560" rx="15" fill="#111827" stroke="#00ff88" stroke-width="4" />
   
-  <text x="640" y="200" fill="#00ffcc" font-family="monospace, sans-serif" font-size="46" font-weight="bold" text-anchor="middle" letter-spacing="4">
+  <text x="640" y="190" fill="#00ffcc" font-family="sans-serif" font-size="48" font-weight="bold" text-anchor="middle">
     HELLO FROM THE GH05T
   </text>
   
-  <text x="640" y="280" fill="#e5e7eb" font-family="monospace, sans-serif" font-size="24" text-anchor="middle">
+  <text x="640" y="270" fill="#e5e7eb" font-family="sans-serif" font-size="26" text-anchor="middle">
     Target: Sagemcom DSI74 V2 HD GVT (STiH237)
   </text>
   
-  <text x="640" y="330" fill="#38bdf8" font-family="monospace, sans-serif" font-size="22" text-anchor="middle">
-    Engine: Ekioh v2.2.4.5-sagem
+  <text x="640" y="330" fill="#38bdf8" font-family="sans-serif" font-size="24" text-anchor="middle">
+    Middleware: Ekioh v2.2.4.5 (SVG Tiny 1.2)
   </text>
   
-  <text x="640" y="380" fill="#a78bfa" font-family="monospace, sans-serif" font-size="22" text-anchor="middle">
-    Experiment: NET-CONFIG-005 (Controlled UI Injection)
+  <text x="640" y="390" fill="#a78bfa" font-family="sans-serif" font-size="24" text-anchor="middle">
+    Experiment: NET-CONFIG-005 (UI Injection)
   </text>
 
-  <rect x="340" y="440" width="600" height="60" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1" />
-  <text x="640" y="478" fill="#facc15" font-family="monospace, sans-serif" font-size="20" text-anchor="middle">
-    STATUS: STOCK RUNTIME COMPROMISED / ARMED
+  <rect x="290" y="460" width="700" height="80" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="2" />
+  <text x="640" y="512" fill="#facc15" font-family="sans-serif" font-size="26" font-weight="bold" text-anchor="middle">
+    STATUS: STOCK RUNTIME CONTROLLED
   </text>
 </svg>
