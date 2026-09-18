@@ -21,3 +21,7 @@ scratch/
 # Packet captures
 captures/
 *.pcap
+
+# Python cache
+__pycache__/
+*.pyc
