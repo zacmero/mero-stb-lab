@@ -46,10 +46,11 @@ flowchart TD
     SSHNode --> Multimedia["Display & Media Acceleration<br/>(HDMI, CVBS, HW Video Decode)"]
 ```
 
-- **[USB-PROBE-001](docs/experiments/usb-probe-001.md): COMPLETED (RESULT: NEGATIVE)**  
-  The receiver powers/accesses the USB flash drive, but the observed "updating firmware" cold-boot screen occurs identically without any USB drive present. Blind filename probing has been terminated.
-- **[BOOT-CHAIN-001](docs/boot-chain/boot-chain-001.md): ACTIVE PHASE**  
-  Physical boot-chain archaeology, test point tracing, logic-level verification, and passive UART logging during cold-boot.
+- **[Full Project Roadmap & Zero-Cost Strategy](ROADMAP.md)**: Details the active $0-budget exploration routes (HTTP endpoint emulation, front-panel boot straps, and USB keyboard console probe).
+- **[USB-PROBE-001](docs/experiments/usb-probe-001.md): COMPLETED (RESULT: NEGATIVE)** — Blind filename probing terminated.
+- **[USB-SCRIPT-002](docs/experiments/usb-script-002.md): COMPLETED (RESULT: NEGATIVE)** — Conventional U-Boot script discovery verified negative.
+- **[NET-PATH-003](docs/experiments/net-path-003.md): COMPLETED (RESULT: POSITIVE)** — Verified Layer 2/3 relay, captured boot DNS (`ucstb.vivoplay.com.br`), outbound HTTP endpoints (`186.215.183.217:80`, `191.32.31.251:80`), firmware version `1.320.1.0.5`, and error `05NW`.
+- **[NET-PROVISION-004](docs/experiments/plan-net-provision-004.md): ACTIVE PHASE** — Local HTTP endpoint emulation to capture raw unencrypted GET/POST requests and explore network provisioning.
 
 ---
 
