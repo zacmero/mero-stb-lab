@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "code": 0,
+  "result": true,
+  "portalUrl": "http://192.168.1.97:8080/portal.html",
+  "portal_url": "http://192.168.1.97:8080/portal.html",
+  "portal": "http://192.168.1.97:8080/portal.html",
+  "portalSvg": "http://192.168.1.97:8080/portal.svg",
+  "startUrl": "http://192.168.1.97:8080/portal.html",
+  "start_url": "http://192.168.1.97:8080/portal.html",
+  "mainUrl": "http://192.168.1.97:8080/portal.html",
+  "homeUrl": "http://192.168.1.97:8080/portal.html",
+  "url": "http://192.168.1.97:8080/portal.html",
+  "epgUrl": "http://192.168.1.97:8080/portal.html",
+  "vodUrl": "http://192.168.1.97:8080/portal.html",
+  "logUrl": "http://192.168.1.97:8080/log",
+  "version": "1.320.1.0.5"
+}
