@@ -17,3 +17,7 @@ scratch/
 # Raw large firmware dumps (track hashes/extracted metadata instead)
 *.raw
 *.img
+
+# Packet captures
+captures/
+*.pcap
