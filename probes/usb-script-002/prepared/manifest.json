@@ -1,0 +1,20 @@
+{
+  "experiment": "USB-SCRIPT-002",
+  "kind": "legacy U-Boot SCRIPT, not KERNEL and not FIRMWARE",
+  "target_hardware_execution_tested": false,
+  "stock_bootloader_identified": false,
+  "usb_autoload_confirmed": false,
+  "pc_ip": "192.168.1.97",
+  "receiver_ip": "192.168.1.134",
+  "netmask": "255.255.255.0",
+  "delay_seconds_if_sleep_supported": 22,
+  "ping_count_commands": 3,
+  "script_bytes": 801,
+  "image_bytes": 873,
+  "image_sha256": "75501f4bd3254807e23b08b0f4799ef7c323aa47857b8b6f9b8df9c7499cad4a",
+  "image_type": 6,
+  "architecture": 9,
+  "header_and_data_crc_verified": true,
+  "source_allowlist_verified": true,
+  "persistent_write_commands": []
+}

@@ -1,0 +1,24 @@
+USB-SCRIPT-002 host validation for repository integration
+
+python3 -m unittest -v test_build_probe.py: PASS (10 tests)
+- legacy SCRIPT round-trip and command audit
+- all four shipped images identical to the builder output
+- header and payload corruption rejected
+- empty/truncated images rejected
+- persistent/raw-write commands rejected by audit
+- invalid address pairs rejected
+- deterministic rebuild; existing output not overwritten
+- all shipped SHA-256 checksums match
+- complete prepared bundle verifies
+
+python3 build_probe.py verify prepared: PASS
+(cd prepared && sha256sum -c SHA256SUMS): PASS (7 files)
+file prepared/usb-files/boot.scr: U-Boot legacy uImage, Linux/SuperH,
+  Script File (Not compressed), 809-byte payload, 873-byte complete image.
+SHA-256 of each script image:
+  75501f4bd3254807e23b08b0f4799ef7c323aa47857b8b6f9b8df9c7499cad4a
+
+Source and prepared payload are unchanged from the supplied ZIP.
+Hardware execution: NOT TESTED.
+mkimage: not available; no mkimage validation is claimed.
+A valid image format does not establish receiver compatibility.
