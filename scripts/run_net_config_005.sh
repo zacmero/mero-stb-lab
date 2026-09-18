@@ -25,8 +25,6 @@ die() {
     exit 2
 }
 
-[[ "${ARM}" == "YES" ]] || die "set ALLOW_ARP_MITM=YES only after reviewing the preflight output"
-
 command -v ip >/dev/null || die "'ip' command not found"
 command -v iptables >/dev/null || die "'iptables' command not found"
 command -v tcpdump >/dev/null || die "'tcpdump' command not found"
@@ -76,7 +74,13 @@ echo "Gateway   : ${GATEWAY_IP} (${GATEWAY_MAC})"
 echo "Duration  : ${DURATION}s"
 echo "Scope     : EXACT STB ONLY — no DHCP range poisoning"
 echo "======================================"
+if [[ "${ARM}" != "YES" ]]; then
+    echo "[i] DRY PREFLIGHT ONLY: no network state has been changed."
+    echo "[i] If every identity above is correct, rerun with ALLOW_ARP_MITM=YES."
+    exit 0
+fi
 
+echo "[!] LIVE MITM ARMED by explicit ALLOW_ARP_MITM=YES."
 CLEANED_UP=0
 cleanup() {
     if [[ "${CLEANED_UP}" -eq 1 ]]; then
