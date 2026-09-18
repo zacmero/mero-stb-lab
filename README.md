@@ -1,54 +1,55 @@
 # Mero STB Lab (`mero-stb-lab`)
 
-Reverse engineering, hardware hacking, and custom Linux bring-up for the **Sagemcom DSI74** set-top box platform, powered by the **STMicroelectronics STiH237** ("Cardiff") multimedia SoC.
+Reverse engineering, hardware archaeology, and custom Linux bring-up for the **Sagemcom DSI74 V2 HD GVT** satellite set-top box platform, powered by the **STMicroelectronics STiH237** ("Cardiff") multimedia SoC.
+
+The primary objective is to obtain execution of software we control, boot a minimal headless Linux environment with Ethernet and SSH, and repurpose the hardware as a small, versatile network node (**Mero-STB**).
 
 ---
 
-## Hardware Profile
+## Hardware Identity
 
-| Parameter | Specification |
-| :--- | :--- |
-| **Device** | Sagemcom DSI74 Family (Ex-GVT Receiver) |
-| **SoC** | STMicroelectronics STiH237 ("Cardiff") |
-| **Core Architecture** | SuperH SH-4 / ST40-300 |
-| **RAM** | 256 MB DDR SDRAM |
-| **Boot Flash** | Serial SPI / NOR Flash |
-| **System Storage** | Parallel NAND Flash |
-| **I/O & Networking** | 10/100M Ethernet, USB 2.0 Host, HDMI, CVBS, S/PDIF, Smartcard |
+```text
+Chassis Model:   Sagemcom DSI74 V2 HD GVT - BRA
+PCB Markings:    M74X-1 / 25353567/99-A
+Power Supply:    12 V / 2.0 A DC (Center-positive barrel jack)
+SoC:             STMicroelectronics STiH237 (Cardiff family, ST40 / SH-4 core)
+System RAM:      Elpida J4216EFBG (DDR3 SDRAM)
+Storage Flash:   Micron BGA (Marked "3QD17...", SLC NAND flash)
+Display/Keys:    Princeton Tech PT6958 (28-pin SOP, LED driver & key-scanner)
+Boot Flash:      SPI NOR Flash (Candidate under physical/schematic mapping)
+Rear I/O:        HDMI, CVBS Video, YPbPr Component, Stereo Audio, Coaxial S/PDIF,
+                 10/100 Ethernet (MAC: 68:15:90:6B:81:96), USB 2.0 Host, F-Type Satellite In
+```
+
+> **Thermal Notice:** The large aluminum heat-spreader shield makes direct contact with the STiH237 through a thermal interface pad. It **must be securely re-seated** prior to any prolonged powered operation to avoid thermal degradation.
 
 ---
 
-## Architectural Roadmap
-
-The goal is to turn this retired proprietary TV receiver into a lightweight, headless embedded Linux machine with SSH access:
+## Project Status & Active Milestones
 
 ```mermaid
 flowchart TD
-    Power["Power On / Cold Boot"] --> OEMBoot["OEM First-Stage Bootloader<br/>(SPI NOR Flash)"]
-    OEMBoot --> ProbeDecision{"Boot Mode Probe"}
+    USBProbe["USB-PROBE-001<br/>(Speculative Filenames)"] -->|Negative Control| StopGuessing["Cease Blind Guessing"]
+    StopGuessing --> BootChain001["BOOT-CHAIN-001<br/>(Physical Test Pad & UART Probe)"]
     
-    ProbeDecision -- "USB Recovery Detected" --> USBLoad["Load Kernel & Rootfs<br/>from USB Flash Drive"]
-    ProbeDecision -- "No USB Response" --> FlashDump["Dump SPI NOR Flash<br/>Patch bootcmd / bootargs"]
-    FlashDump --> USBLoad
+    BootChain001 --> Eval{"UART Output?"}
+    Eval -- "U-Boot Prompt" --> DirectBoot["Direct USB / TFTP Boot"]
+    Eval -- "Read-Only Log" --> InformedDump["Dump SPI NOR (Addresses Known)"]
+    Eval -- "Console Silent" --> SPIDump["In-Circuit SPI NOR Dump & Patch"]
     
-    USBLoad --> Linux["STLinux 3.4.58 Kernel<br/>(SH4 / ST40)"]
-    Linux --> Buildroot["Buildroot Userspace<br/>(BusyBox + Dropbear)"]
-    Buildroot --> SSH["Ethernet SSH Access<br/>ssh root@mero-stb"]
+    DirectBoot --> Linux["STLinux 3.4.58 Kernel"]
+    InformedDump --> Linux
+    SPIDump --> Linux
+    
+    Linux --> Buildroot["Buildroot SH-4 Userspace"]
+    Buildroot --> SSHNode["ssh root@mero-stb<br/>(Headless Node via Ethernet)"]
+    SSHNode --> Multimedia["Display & Media Acceleration<br/>(HDMI, CVBS, HW Video Decode)"]
 ```
 
-### Strategic Milestones
-1. **Phase 0: Non-Invasive USB Probe (In Progress)**
-   - Test whether OEM bootloader checks USB storage for recovery or update images during cold boot.
-   - Preserves internal flash integrity entirely.
-2. **Phase 1: Boot Flash Extraction (Fallback)**
-   - Dump SPI NOR flash with external programmer.
-   - Inspect strings, extract U-Boot environment, patch `bootcmd` for USB boot fallback.
-3. **Phase 2: Minimal Linux Bring-up (`Mero-STB v0.1`)**
-   - Reconstruct STLinux 3.4.58 BSP with STiH237 Cardiff support.
-   - Build SH-4 Buildroot userspace with DHCP, Dropbear SSH, and BusyBox.
-4. **Phase 3: Hardware Peripherals**
-   - DirectFB / Framebuffer output over HDMI and CVBS.
-   - Hardware accelerated video decoding using Cardiff silicon features.
+- **[USB-PROBE-001](docs/experiments/usb-probe-001.md): COMPLETED (RESULT: NEGATIVE)**  
+  The receiver powers/accesses the USB flash drive, but the observed "updating firmware" cold-boot screen occurs identically without any USB drive present. Blind filename probing has been terminated.
+- **[BOOT-CHAIN-001](docs/boot-chain/boot-chain-001.md): ACTIVE PHASE**  
+  Physical boot-chain archaeology, test point tracing, logic-level verification, and passive UART logging during cold-boot.
 
 ---
 
@@ -57,40 +58,36 @@ flowchart TD
 ```text
 mero-stb-lab/
 ├── docs/
-│   ├── hardware.md          # Hardware specifications and thermal considerations
-│   ├── boot-strategy.md     # Boot chain architecture and development strategy
-│   └── probe-log.md         # Lab bench test logs and observation protocol
+│   ├── hardware/
+│   │   ├── overview.md            # Detailed physical unit specifications & UI observations
+│   │   ├── soc-stih237.md         # STiH237 Cardiff core, architecture & thermal rules
+│   │   ├── memory-mapping.md      # Classification of RAM, NAND, PT6958, and SPI NOR
+│   │   └── network-recon.md       # Network tests, port scan results & traffic analysis
+│   ├── boot-chain/
+│   │   ├── architecture.md        # Staged boot hypothesis & secure boot uncertainty
+│   │   └── boot-chain-001.md      # Primary investigation plan: test pads, UART & decision matrix
+│   └── experiments/
+│       └── usb-probe-001.md       # Full report & negative control of USB recovery probe
+├── research/
+│   ├── stih237-platform.md        # Silicon pinouts, JTAG 1.8V warning, UART configuration
+│   └── dsiw74-comparison.md       # Sibling DSIW74 findings (locked JTAG, flash encryption)
+├── tools/
+│   └── prepare-usb-probe.sh       # Automated, safe USB probe formatting script
+├── buildroot/
+│   └── README.md                  # Buildroot SH-4 userspace package manifesto
+├── kernel/
+│   └── README.md                  # STLinux 3.4.58 BSP kernel strategy
 ├── probes/
-│   └── usb-001/             # USB probe 001 metadata and payload files
-│       ├── README.md        # Description of probe 001
-│       ├── README.TXT       # Plaintext verification banner
-│       ├── update.bin       # Zero-byte filename probe
-│       ├── upgrade.bin      # Zero-byte filename probe
-│       ├── recovery.bin     # Zero-byte filename probe
-│       └── firmware.bin     # Zero-byte filename probe
-├── scripts/
-│   └── prepare-usb-probe.sh # Automated, safe USB probe formatting script
+│   └── usb-001/                   # Probe 001 reference payload files
 ├── .gitignore
 └── README.md
 ```
 
 ---
 
-## USB Probe 001 Quickstart
+## Working Philosophy & Guardrails
 
-To reproduce or prepare the probe flash drive:
-
-```bash
-# Review block devices to confirm target drive path
-lsblk -o NAME,PATH,SIZE,MODEL,TRAN,RM,FSTYPE,MOUNTPOINTS
-
-# Run preparation script (substitute /dev/sdX with the confirmed USB block device)
-sudo ./scripts/prepare-usb-probe.sh /dev/sdX
-```
-
-### Cold Boot Checklist
-- [ ] Ensure SoC heatsink and thermal interface are firmly seated.
-- [ ] Connect display via HDMI or CVBS.
-- [ ] Connect RJ-45 Ethernet cable.
-- [ ] Insert prepared USB drive.
-- [ ] Power on receiver and monitor USB activity LED, front panel indicators, and display.
+1. **Pragmatic Hardware Work:** We use soldering, wire leads, test pads, logic analyzers, and general-purpose Linux interfaces. We do not rely on expensive proprietary commercial flashers as a prerequisite.
+2. **Electrical Safety:** JTAG on the STiH237 runs at **1.8V logic**. Never connect 3.3V/5V equipment without verified bidirectional level shifting. Never apply unverified voltages to unknown test pads.
+3. **Preservation First:** Always take multiple, byte-verified binary SHA-256 dumps before executing any write operations to nonvolatile storage.
+4. **IP & Copyright Cleanliness:** Never commit proprietary vendor firmware blobs to public git. Only extraction scripts, memory maps, hashes, and open-source custom components are committed.
