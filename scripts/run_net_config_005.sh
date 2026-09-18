@@ -4,7 +4,14 @@ set -euo pipefail
 
 IFACE="enp5s0"
 TARGET_MAC="68:15:90:6b:81:96"
-TARGET_IPS=($(seq -f "192.168.1.%g" 130 145))
+TARGET_IPS=($(seq -f "192.168.1.%g" 128 160))
+
+# Dynamically include any currently active IP for the STB MAC from ARP cache
+ACTIVE_ARP_IP=$(awk -v mac="${TARGET_MAC}" 'tolower($4) == tolower(mac) {print $1}' /proc/net/arp | head -n 1)
+if [ -n "${ACTIVE_ARP_IP}" ]; then
+    TARGET_IPS+=("${ACTIVE_ARP_IP}")
+fi
+
 GATEWAY_IP="192.168.1.1"
 GATEWAY_MAC="14:ca:56:81:18:71"
 HTTP_PORT="8080"

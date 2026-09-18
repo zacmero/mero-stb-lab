@@ -1,16 +1,18 @@
 """
-NET-CONFIG-005: Dual HTTP / HTTPS Multi-Endpoint Server & Interceptor
-Handles both plaintext HTTP (8080) and TLS/HTTPS (8443) requests intercepted
-from the Sagemcom DSI74 V2 STB.
+MERO-STB-LAB: Differential HTTP/HTTPS Interceptor & Experiment Harness
+Implements exact Host+Method+Path+Query routing, bounded request body capture,
+cryptographic SHA-256 body hashing, source classification (LOCAL_SELFTEST vs RECEIVER_HW),
+and dynamic test case management.
 """
 
 import sys
 import os
-import mimetypes
-import datetime
-import signal
+import time
 import json
+import hashlib
+import urllib.parse
 import ssl
+import signal
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -20,204 +22,340 @@ HTTPS_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 8443
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 REPO_DIR = os.path.dirname(SCRIPT_DIR)
-WEB_DIR = os.path.join(REPO_DIR, "web")
+CAPTURES_DIR = os.path.join(REPO_DIR, "captures")
+JSONL_LOG = os.path.join(CAPTURES_DIR, "experiment_transactions.jsonl")
+CASE_FILE = "/tmp/mero_active_case.json"
 
-CONFIG_FILE = os.path.join(WEB_DIR, "appConfigFit.json")
-PORTAL_FILE = os.path.join(WEB_DIR, "portal.html")
-PORTAL_SVG = os.path.join(WEB_DIR, "portal.svg")
-CERT_FILE = os.path.join(WEB_DIR, "certs", "server.crt")
-KEY_FILE = os.path.join(WEB_DIR, "certs", "server.key")
+TARGET_MAC = "68:15:90:6b:81:96"
+CERT_FILE = os.path.join(REPO_DIR, "web", "certs", "server.crt")
+KEY_FILE = os.path.join(REPO_DIR, "web", "certs", "server.key")
 
-class ConfigServerHandler(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.0"
+# Global active case state
+CURRENT_CASE = {
+    "case_id": "BASELINE",
+    "description": "Repeatable baseline - minimal JSON, no navigation fields, no redirects",
+    "bussola_status": 200,
+    "bussola_headers": {"Content-Type": "application/json; charset=utf-8"},
+    "bussola_body": json.dumps({"status": "ok", "code": 0}),
+    "appconfig_status": 200,
+    "appconfig_headers": {"Content-Type": "application/json; charset=utf-8"},
+    "appconfig_body": json.dumps({"status": "ok", "code": 0}),
+}
+CASE_LOCK = threading.Lock()
 
-    def log_request_details(self):
-        now = datetime.datetime.now().isoformat()
-        client = f"{self.client_address[0]}:{self.client_address[1]}"
+def get_active_case():
+    with CASE_LOCK:
+        if os.path.exists(CASE_FILE):
+            try:
+                with open(CASE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data
+            except Exception:
+                pass
+        return dict(CURRENT_CASE)
+
+def set_active_case(case_dict):
+    with CASE_LOCK:
+        CURRENT_CASE.clear()
+        CURRENT_CASE.update(case_dict)
+        try:
+            with open(CASE_FILE, "w", encoding="utf-8") as f:
+                json.dump(case_dict, f, indent=2)
+        except Exception as e:
+            print(f"[-] Error writing case file: {e}", flush=True)
+
+def classify_client(client_ip):
+    if client_ip in ("127.0.0.1", "::1", "192.168.1.97"):
+        return "LOCAL_SELFTEST"
+    # Check ARP cache
+    try:
+        with open("/proc/net/arp", "r") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 4 and parts[0] == client_ip:
+                    if parts[3].lower() == TARGET_MAC.lower():
+                        return "RECEIVER_HW"
+    except Exception:
+        pass
+    return "LAN_OTHER"
+
+class DifferentialHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def read_bounded_body(self, max_bytes=65536, timeout=2.0):
+        length_header = self.headers.get("Content-Length")
+        if not length_header:
+            return b""
+        try:
+            length = int(length_header)
+        except ValueError:
+            return b""
+        if length <= 0:
+            return b""
+        read_size = min(length, max_bytes)
+        self.connection.settimeout(timeout)
+        try:
+            body = self.rfile.read(read_size)
+            return body
+        except Exception:
+            return b""
+
+    def record_transaction(self, method, raw_path, req_body, resp_status, resp_headers, resp_body, case_id):
+        now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + f".{int((time.time()%1)*1e6):06d}Z"
+        client_ip = self.client_address[0]
+        client_port = self.client_address[1]
+        source = classify_client(client_ip)
+        host = self.headers.get("Host", "").split(":")[0].strip()
+
+        req_hash = hashlib.sha256(req_body).hexdigest() if req_body else None
+        resp_hash = hashlib.sha256(resp_body).hexdigest() if resp_body else None
+
+        record = {
+            "timestamp": now,
+            "source": source,
+            "case_id": case_id,
+            "client": f"{client_ip}:{client_port}",
+            "method": method,
+            "host": host,
+            "path": raw_path,
+            "headers": dict(self.headers),
+            "request_body_size": len(req_body),
+            "request_body_sha256": req_hash,
+            "request_body_snippet": req_body[:512].decode("latin1", errors="replace") if req_body else "",
+            "response_status": resp_status,
+            "response_headers": resp_headers,
+            "response_body_size": len(resp_body),
+            "response_body_sha256": resp_hash,
+        }
+
+        # Write to JSONL
+        try:
+            with open(JSONL_LOG, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record) + "\n")
+                f.flush()
+        except Exception as e:
+            print(f"[-] JSONL write error: {e}", flush=True)
+
+        # Write to human log
         proto = "HTTPS" if hasattr(self.connection, "cipher") and self.connection.cipher() else "HTTP"
-        log_entry = [
-            "\n" + "=" * 70,
-            f"TIMESTAMP:    {now} [{proto}]",
-            f"CLIENT:       {client}",
-            f"REQUEST:      {self.command} {self.path} {self.request_version}",
-            "--- HEADERS ---",
+        lines = [
+            f"\n{'='*70}",
+            f"TIMESTAMP:    {now} [{proto}] [{source}] Case: {case_id}",
+            f"CLIENT:       {client_ip}:{client_port} (Host: {host})",
+            f"REQUEST:      {method} {raw_path}",
+            f"RESPONSE:     HTTP {resp_status} ({len(resp_body)} B, SHA256: {resp_hash[:16] if resp_hash else 'none'}...)"
         ]
-        for header, val in self.headers.items():
-            log_entry.append(f"  {header}: {val}")
-        log_entry.append("=" * 70 + "\n")
-
-        formatted = "\n".join(log_entry)
+        if req_body:
+            lines.append(f"REQ_BODY ({len(req_body)} B): {req_body[:256].decode('latin1', errors='replace')}")
+        lines.append(f"{'='*70}\n")
+        formatted = "\n".join(lines)
         print(formatted, flush=True)
-
         try:
             with open(LOG_FILE, "a", encoding="utf-8") as f:
                 f.write(formatted)
                 f.flush()
-                os.fsync(f.fileno())
-        except Exception as e:
-            print(f"[-] Error writing to log: {e}", flush=True)
+        except Exception:
+            pass
+
+    def send_exact_response(self, status, headers_dict, body_bytes, case_id):
+        self.send_response(status)
+        self.send_header("Server", "mero-harness/1.0")
+        self.send_header("Content-Length", str(len(body_bytes)))
+        self.send_header("Connection", "close")
+        for k, v in headers_dict.items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body_bytes)
+        return status, headers_dict, body_bytes
+
+    def handle_route(self, method):
+        parsed = urllib.parse.urlsplit(self.path)
+        path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
+        host = self.headers.get("Host", "").split(":")[0].strip()
+        req_body = self.read_bounded_body()
+        active_case = get_active_case()
+        case_id = active_case.get("case_id", "BASELINE")
+
+        # -------------------------------------------------------------
+        # Admin / Harness Dynamic Control Endpoint
+        # -------------------------------------------------------------
+        if path == "/_harness/set_case" and method == "POST":
+            try:
+                new_case = json.loads(req_body.decode("utf-8"))
+                set_active_case(new_case)
+                resp = json.dumps({"status": "ok", "active_case": new_case}).encode("utf-8")
+                self.send_exact_response(200, {"Content-Type": "application/json"}, resp, case_id)
+                self.record_transaction(method, self.path, req_body, 200, {"Content-Type": "application/json"}, resp, case_id)
+                return
+            except Exception as e:
+                resp = json.dumps({"error": str(e)}).encode("utf-8")
+                self.send_exact_response(400, {"Content-Type": "application/json"}, resp, case_id)
+                self.record_transaction(method, self.path, req_body, 400, {"Content-Type": "application/json"}, resp, case_id)
+                return
+
+        if path == "/_harness/get_case" and method == "GET":
+            resp = json.dumps(active_case).encode("utf-8")
+            self.send_exact_response(200, {"Content-Type": "application/json"}, resp, case_id)
+            self.record_transaction(method, self.path, req_body, 200, {"Content-Type": "application/json"}, resp, case_id)
+            return
+
+        # -------------------------------------------------------------
+        # Route 1: Marker Endpoints (/marker/<id>)
+        # Critical evidence: If client requests this, a candidate was followed!
+        # -------------------------------------------------------------
+        if path.startswith("/marker/"):
+            marker_name = path[len("/marker/"):]
+            client_ip = self.client_address[0]
+            src = classify_client(client_ip)
+            print(f"\n[*** EVIDENCE HIT ***] MARKER FETCHED: {marker_name} by {client_ip} ({src}) in Case {case_id}!\n", flush=True)
+            
+            # Serve valid SVG Tiny with embedded telemetry script test
+            body = (
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720">\n'
+                '  <rect width="1280" height="720" fill="#050811" />\n'
+                f'  <text x="640" y="360" fill="#00ffcc" font-family="sans-serif" font-size="36" text-anchor="middle">MARKER HIT: {marker_name}</text>\n'
+                '  <script type="text/ecmascript"><![CDATA[\n'
+                '    try {\n'
+                '      var xhr = new XMLHttpRequest();\n'
+                f'      xhr.open("GET", "/report/script_exec?marker={marker_name}&run=" + (20+22), true);\n'
+                '      xhr.send();\n'
+                '    } catch(e) {}\n'
+                '  ]]></script>\n'
+                '</svg>\n'
+            ).encode("utf-8")
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        # -------------------------------------------------------------
+        # Route 2: Script Execution Callback (/report/script_exec)
+        # Demonstrates actual JavaScript execution
+        # -------------------------------------------------------------
+        if path.startswith("/report/"):
+            client_ip = self.client_address[0]
+            src = classify_client(client_ip)
+            print(f"\n[*** CRITICAL HIT ***] SCRIPT EXECUTION DEMONSTRATED! Path={self.path} by {client_ip} ({src})!\n", flush=True)
+            body = b'{"status":"acknowledged","script_executed":true}\n'
+            headers = {"Content-Type": "application/json"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        # -------------------------------------------------------------
+        # Route 3: Bussola / Interactive Redirect (/bussola/redirect)
+        # Host: 191.32.31.251 (or localhost / PC during test)
+        # -------------------------------------------------------------
+        if path == "/bussola/redirect":
+            if host in ("191.32.31.251", "127.0.0.1", "192.168.1.97", ""):
+                status = active_case.get("bussola_status", 200)
+                headers = dict(active_case.get("bussola_headers", {"Content-Type": "application/json; charset=utf-8"}))
+                body = active_case.get("bussola_body", '{"status":"ok","code":0}').encode("utf-8")
+                self.send_exact_response(status, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+                return
+
+        # -------------------------------------------------------------
+        # Route 4: Application Configuration (/tv-config/appConfigFit.json)
+        # Host: 191.32.31.251 (or localhost / PC during test)
+        # -------------------------------------------------------------
+        if path == "/tv-config/appConfigFit.json":
+            if host in ("191.32.31.251", "127.0.0.1", "192.168.1.97", ""):
+                status = active_case.get("appconfig_status", 200)
+                headers = dict(active_case.get("appconfig_headers", {"Content-Type": "application/json; charset=utf-8"}))
+                body = active_case.get("appconfig_body", '{"status":"ok","code":0}').encode("utf-8")
+                self.send_exact_response(status, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+                return
+
+        # -------------------------------------------------------------
+        # Route 5: Backup IP Configuration (/tv-config/backupIpConfig.json)
+        # Dispatched by curl/7.32.0 on STB
+        # -------------------------------------------------------------
+        if path == "/tv-config/backupIpConfig.json" and method == "POST":
+            if host in ("191.32.31.251", "127.0.0.1", "192.168.1.97", ""):
+                body = b'{"status":"ok","code":0,"ack":true}\n'
+                headers = {"Content-Type": "application/json; charset=utf-8"}
+                self.send_exact_response(200, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+                return
+
+        # -------------------------------------------------------------
+        # Route 6: Mirada Highlights XML (/mirada1-destaques/highlights_config.xml)
+        # Host: 186.215.183.217
+        # -------------------------------------------------------------
+        if path == "/mirada1-destaques/highlights_config.xml":
+            if host in ("186.215.183.217", "127.0.0.1", "192.168.1.97", ""):
+                body = (
+                    '<?xml version="1.0" encoding="utf-8"?>\n'
+                    '<highlights version="1.0">\n'
+                    '  <highlight id="1" name="DIAGNOSTIC TEST">\n'
+                    '    <title>MERO-STB LAB</title>\n'
+                    '    <channel>DIFF TEST</channel>\n'
+                    '    <description>Mero STB Lab Diagnostic</description>\n'
+                    '    <url>/marker/highlight_url</url>\n'
+                    '  </highlight>\n'
+                    '</highlights>\n'
+                ).encode("utf-8")
+                headers = {"Content-Type": "application/xml; charset=utf-8"}
+                self.send_exact_response(200, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+                return
+
+        # -------------------------------------------------------------
+        # Route 7: Social / Facebook App Mock
+        # Host: 177.135.68.178
+        # -------------------------------------------------------------
+        if path in ("/facebook/login", "/facebook/verifycode"):
+            if host in ("177.135.68.178", "127.0.0.1", "192.168.1.97", ""):
+                if "verifycode" in path:
+                    body = json.dumps({"status": "success", "authenticated": True, "code": "GH05T"}).encode("utf-8")
+                else:
+                    body = json.dumps({"status": "success", "code": "GH05T", "user_code": "GH05T", "url": "/marker/fb_url"}).encode("utf-8")
+                headers = {"Content-Type": "application/json; charset=utf-8"}
+                self.send_exact_response(200, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+                return
+
+        # -------------------------------------------------------------
+        # Route 8: PayTV Telemetry Register (/paytv-stats-web/api/event/register)
+        # Host: 186.215.183.216
+        # -------------------------------------------------------------
+        if path == "/paytv-stats-web/api/event/register" and method == "POST":
+            if host in ("186.215.183.216", "127.0.0.1", "192.168.1.97", ""):
+                body = b'{"status":"ok","code":0,"ack":true}\n'
+                headers = {"Content-Type": "application/json; charset=utf-8"}
+                self.send_exact_response(200, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+                return
+
+        # -------------------------------------------------------------
+        # Route 9: Explicit 404 for any unmapped route or host mismatch
+        # -------------------------------------------------------------
+        err_body = json.dumps({
+            "error": "not_found",
+            "host": host,
+            "path": path,
+            "method": method,
+            "case_id": case_id
+        }).encode("utf-8")
+        headers = {"Content-Type": "application/json; charset=utf-8"}
+        self.send_exact_response(404, headers, err_body, case_id)
+        self.record_transaction(method, self.path, req_body, 404, headers, err_body, case_id)
+
+    def do_HEAD(self):
+        self.handle_route("HEAD")
+
+    def do_GET(self):
+        self.handle_route("GET")
+
+    def do_POST(self):
+        self.handle_route("POST")
 
     def log_message(self, format, *args):
         pass
-
-    def send_safe_response(self, content_bytes, content_type="text/html; charset=utf-8", status=200, extra_headers=None):
-        self.send_response(status)
-        self.send_header("Server", "gvt-probe")
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(content_bytes)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Connection", "close")
-        if extra_headers:
-            for k, v in extra_headers.items():
-                self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(content_bytes)
-
-    def do_HEAD(self):
-        self.log_request_details()
-        self.send_response(200)
-        self.send_header("Server", "gvt-probe")
-        self.send_header("Content-Type", "text/html")
-        self.send_header("Content-Length", "0")
-        self.send_header("Connection", "close")
-        self.end_headers()
-
-    def do_GET(self):
-        self.log_request_details()
-
-        clean_path = self.path.split("?")[0].lstrip("/")
-
-        # Route 0: Bussola / Interactive VOD redirect
-        if "bussola" in clean_path or "redirect" in clean_path:
-            redirect_dict = {
-                "status": "ok",
-                "code": 0,
-                "url": "/portal.svg",
-                "redirect": "/portal.svg",
-                "redirectUrl": "/portal.svg",
-                "portalUrl": "/portal.svg",
-                "vodUrl": "/portal.svg",
-                "target": "/portal.svg",
-                "location": "/portal.svg",
-                "destination": "/portal.svg",
-                "result": {
-                    "url": "/portal.svg",
-                    "status": "ok"
-                },
-                "data": {
-                    "url": "/portal.svg"
-                }
-            }
-            redirect_payload = json.dumps(redirect_dict, indent=2).encode("utf-8")
-            self.send_safe_response(
-                redirect_payload,
-                content_type="application/json; charset=utf-8",
-                status=302,
-                extra_headers={"Location": "/portal.svg"}
-            )
-            return
-
-        # Route 1: Application configuration JSON
-        if "appConfig" in clean_path or clean_path.endswith(".json"):
-            cfg_path = os.path.join(WEB_DIR, "tv-config", "appConfigFit.json")
-            if not os.path.exists(cfg_path):
-                cfg_path = CONFIG_FILE
-            if os.path.exists(cfg_path):
-                with open(cfg_path, "rb") as f:
-                    content = f.read()
-            else:
-                content = b'{"status":"ok","code":0}\n'
-            self.send_safe_response(content, "application/json; charset=utf-8")
-            return
-
-        # Route 1B: Mirada highlights XML
-        if "highlights" in clean_path or clean_path.endswith(".xml"):
-            hl_file = os.path.join(WEB_DIR, "mirada1-destaques", "highlights_config.xml")
-            if not os.path.exists(hl_file):
-                hl_file = os.path.join(WEB_DIR, "highlights_config.xml")
-            if os.path.exists(hl_file):
-                with open(hl_file, "rb") as f:
-                    content = f.read()
-            else:
-                content = b'<?xml version="1.0" encoding="utf-8"?><highlights><highlight id="1"><title>HELLO FROM THE GH05T</title></highlight></highlights>'
-            self.send_safe_response(content, "application/xml; charset=utf-8")
-            return
-
-        # Route 2: Diagnostic portal SVG / HTML (always serve strict SVG Tiny for Ekioh)
-        if "portal" in clean_path or clean_path == "" or clean_path.endswith(".svg") or clean_path.endswith(".html"):
-            if os.path.exists(PORTAL_SVG):
-                with open(PORTAL_SVG, "rb") as f:
-                    content = f.read()
-            elif os.path.exists(PORTAL_FILE):
-                with open(PORTAL_FILE, "rb") as f:
-                    content = f.read()
-            else:
-                content = b'<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny"><text y="20">HELLO FROM THE GH05T</text></svg>'
-            self.send_safe_response(content, "image/svg+xml; charset=utf-8")
-            return
-
-        # Route 3: Generic static file from web/ directory if it exists
-        local_target = os.path.join(WEB_DIR, clean_path)
-        if clean_path and os.path.isfile(local_target):
-            mime, _ = mimetypes.guess_type(local_target)
-            if not mime:
-                mime = "text/plain; charset=utf-8"
-            elif mime.startswith("text/") or mime in ("application/javascript", "image/svg+xml", "application/xml"):
-                mime += "; charset=utf-8"
-            with open(local_target, "rb") as f:
-                content = f.read()
-            self.send_safe_response(content, mime)
-            return
-
-        # Route 4B: Social / Apps mock (e.g. Facebook TV App)
-        if "facebook" in clean_path:
-            if "verifycode" in clean_path:
-                resp_data = {
-                    "status": "success",
-                    "authenticated": True,
-                    "code": "GH05T",
-                    "access_token": "gh05t_mock_token_12345",
-                    "url": "/portal.svg"
-                }
-            else:
-                resp_data = {
-                    "status": "success",
-                    "code": "GH05T",
-                    "user_code": "GH05T",
-                    "verification_url": "/portal.svg",
-                    "url": "/portal.svg",
-                    "expires_in": 3600,
-                    "interval": 5
-                }
-            self.send_safe_response(
-                json.dumps(resp_data, indent=2).encode("utf-8"),
-                "application/json; charset=utf-8"
-            )
-            return
-
-        # Route 5: Catch-all fallback for unknown paths
-        content = json.dumps({
-            "status": "ok",
-            "code": 0,
-            "received": True,
-            "endpoint": self.path,
-            "url": "/portal.svg"
-        }, indent=2).encode("utf-8")
-        self.send_safe_response(content, "application/json; charset=utf-8")
-
-    def do_POST(self):
-        self.log_request_details()
-        backup_cfg = os.path.join(WEB_DIR, "tv-config", "backupIpConfig.json")
-        if not os.path.exists(backup_cfg):
-            backup_cfg = os.path.join(WEB_DIR, "backupIpConfig.json")
-        if ("backupIpConfig" in self.path or "appConfig" in self.path) and os.path.exists(backup_cfg):
-            with open(backup_cfg, "rb") as f:
-                content = f.read()
-        elif "paytv-stats" in self.path or "register" in self.path:
-            content = b'{"status":"ok","code":0,"ack":true,"registered":true}\n'
-        else:
-            content = b'{"status":"ok","code":0,"ack":true}\n'
-        self.send_safe_response(content, "application/json; charset=utf-8")
 
 http_server = None
 https_server = None
@@ -234,11 +372,11 @@ def run():
     global http_server, https_server
     signal.signal(signal.SIGTERM, sigterm_handler)
 
-    http_server = HTTPServer(("0.0.0.0", HTTP_PORT), ConfigServerHandler)
-    print(f"[*] HTTP server listening on  0.0.0.0:{HTTP_PORT}", flush=True)
+    http_server = HTTPServer(("0.0.0.0", HTTP_PORT), DifferentialHandler)
+    print(f"[*] Differential HTTP interceptor on 0.0.0.0:{HTTP_PORT}", flush=True)
 
     if os.path.exists(CERT_FILE) and os.path.exists(KEY_FILE):
-        https_server = HTTPServer(("0.0.0.0", HTTPS_PORT), ConfigServerHandler)
+        https_server = HTTPServer(("0.0.0.0", HTTPS_PORT), DifferentialHandler)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         try:
             ctx.minimum_version = ssl.TLSVersion.TLSv1
@@ -251,13 +389,6 @@ def run():
         ctx.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
         https_server.socket = ctx.wrap_socket(https_server.socket, server_side=True)
         print(f"[*] HTTPS server listening on 0.0.0.0:{HTTPS_PORT}", flush=True)
-    else:
-        print("[-] Warning: TLS certificates not found, HTTPS disabled.", flush=True)
-
-    print(f"[*] Serving config: {CONFIG_FILE}", flush=True)
-    print(f"[*] Serving portal: {PORTAL_FILE}", flush=True)
-    print(f"[*] Serving SVG:    {PORTAL_SVG}", flush=True)
-    print(f"[*] Logging requests to: {LOG_FILE}", flush=True)
 
     threads = []
     t_http = threading.Thread(target=http_server.serve_forever, daemon=True)
@@ -279,7 +410,7 @@ def run():
             http_server.server_close()
         if https_server:
             https_server.server_close()
-        print("[*] Dual server shut down cleanly.", flush=True)
+        print("[*] Differential server shut down cleanly.", flush=True)
 
 if __name__ == "__main__":
     run()
