@@ -218,6 +218,161 @@ CASES = [
             }
         }, indent=2),
         "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-16-HISTORICAL-HTTP11",
+        "description": "One-variable reduction from CASE-15: HTTP/1.1 instead of HTTP/1.0; all redirect headers and historical JSON retained",
+        "endpoint": "/bussola/redirect",
+        "provenance": "CASE-15 one-variable reduction: protocol version",
+        "http_version": "HTTP/1.1",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "/portal.svg",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({
+            "status": "ok", "code": 0, "url": "/portal.svg",
+            "redirect": "/portal.svg", "redirectUrl": "/portal.svg",
+            "portalUrl": "/portal.svg", "vodUrl": "/portal.svg",
+            "target": "/portal.svg", "location": "/portal.svg",
+            "destination": "/portal.svg",
+            "result": {"url": "/portal.svg", "status": "ok"},
+            "data": {"url": "/portal.svg"}
+        }, indent=2),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-17-HISTORICAL-SERVER-GENERIC",
+        "description": "One-variable reduction from CASE-15: replace Server: gvt-probe with mero-harness/1.0; everything else retained",
+        "endpoint": "/bussola/redirect",
+        "provenance": "CASE-15 one-variable reduction: Server header",
+        "http_version": "HTTP/1.0",
+        "server_header": "mero-harness/1.0",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "/portal.svg",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({
+            "status": "ok", "code": 0, "url": "/portal.svg",
+            "redirect": "/portal.svg", "redirectUrl": "/portal.svg",
+            "portalUrl": "/portal.svg", "vodUrl": "/portal.svg",
+            "target": "/portal.svg", "location": "/portal.svg",
+            "destination": "/portal.svg",
+            "result": {"url": "/portal.svg", "status": "ok"},
+            "data": {"url": "/portal.svg"}
+        }, indent=2),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-18-HISTORICAL-NO-LOCATION",
+        "description": "One-variable reduction from CASE-15: remove Location header while retaining HTTP/1.0, 302, Server header, and full historical JSON",
+        "endpoint": "/bussola/redirect",
+        "provenance": "CASE-15 one-variable reduction: Location header removed",
+        "http_version": "HTTP/1.0",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({
+            "status": "ok", "code": 0, "url": "/portal.svg",
+            "redirect": "/portal.svg", "redirectUrl": "/portal.svg",
+            "portalUrl": "/portal.svg", "vodUrl": "/portal.svg",
+            "target": "/portal.svg", "location": "/portal.svg",
+            "destination": "/portal.svg",
+            "result": {"url": "/portal.svg", "status": "ok"},
+            "data": {"url": "/portal.svg"}
+        }, indent=2),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-19-302-LOCATION-MINIMAL-BODY",
+        "description": "Reduction test for Location sufficiency: historical HTTP/1.0 302 + Location retained, navigation JSON keys removed",
+        "endpoint": "/bussola/redirect",
+        "provenance": "CASE-15 reduction: retain transport redirect, remove candidate JSON navigation fields",
+        "http_version": "HTTP/1.0",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "/portal.svg",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({"status": "ok", "code": 0}, indent=2),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-20-JSON-URL-ONLY",
+        "description": "JSON-field isolation: HTTP/1.0 302 without Location; only top-level url points to /portal.svg",
+        "endpoint": "/bussola/redirect",
+        "provenance": "JSON key isolation from CASE-18",
+        "http_version": "HTTP/1.0",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({"status": "ok", "code": 0, "url": "/portal.svg"}, indent=2),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-21-JSON-PORTALURL-ONLY",
+        "description": "JSON-field isolation: HTTP/1.0 302 without Location; only top-level portalUrl points to /portal.svg",
+        "endpoint": "/bussola/redirect",
+        "provenance": "JSON key isolation from CASE-18",
+        "http_version": "HTTP/1.0",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({"status": "ok", "code": 0, "portalUrl": "/portal.svg"}, indent=2),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-22-JSON-REDIRECTURL-ONLY",
+        "description": "JSON-field isolation: HTTP/1.0 302 without Location; only top-level redirectUrl points to /portal.svg",
+        "endpoint": "/bussola/redirect",
+        "provenance": "JSON key isolation from CASE-18",
+        "http_version": "HTTP/1.0",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({"status": "ok", "code": 0, "redirectUrl": "/portal.svg"}, indent=2),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-23-JSON-VODURL-ONLY",
+        "description": "JSON-field isolation: HTTP/1.0 302 without Location; only top-level vodUrl points to /portal.svg",
+        "endpoint": "/bussola/redirect",
+        "provenance": "JSON key isolation from CASE-18",
+        "http_version": "HTTP/1.0",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({"status": "ok", "code": 0, "vodUrl": "/portal.svg"}, indent=2),
+        "expected_marker": "/portal.svg"
     }
 ]
 
@@ -456,6 +611,33 @@ def main():
                 (c15, "Trigger /bussola/redirect by opening Vivo Play once."),
             ]
             print("MERO-STB-LAB: EXACT HISTORICAL REPLAY (CASE-15-EXACT-HISTORICAL-D085)")
+        elif len(sys.argv) > 1 and sys.argv[1] == "--sequence-reduction-core":
+            wanted = [
+                "CASE-15-EXACT-HISTORICAL-D085",
+                "CASE-16-HISTORICAL-HTTP11",
+                "CASE-17-HISTORICAL-SERVER-GENERIC",
+                "CASE-18-HISTORICAL-NO-LOCATION",
+                "CASE-19-302-LOCATION-MINIMAL-BODY",
+            ]
+            selected = {c["case_id"]: c for c in CASES}
+            sequence = [
+                (selected[cid], "Close/reopen Vivo Play and trigger /bussola/redirect once.")
+                for cid in wanted
+            ]
+            print("MERO-STB-LAB: SYSTEMATIC POSITIVE REDUCTION (CASES 15-19)")
+        elif len(sys.argv) > 1 and sys.argv[1] == "--sequence-json-keys":
+            wanted = [
+                "CASE-20-JSON-URL-ONLY",
+                "CASE-21-JSON-PORTALURL-ONLY",
+                "CASE-22-JSON-REDIRECTURL-ONLY",
+                "CASE-23-JSON-VODURL-ONLY",
+            ]
+            selected = {c["case_id"]: c for c in CASES}
+            sequence = [
+                (selected[cid], "Close/reopen Vivo Play and trigger /bussola/redirect once.")
+                for cid in wanted
+            ]
+            print("MERO-STB-LAB: JSON NAVIGATION-KEY ISOLATION (CASES 20-23)")
         elif len(sys.argv) > 1 and sys.argv[1] == "--sequence-redirect-test":
             c12 = [c for c in CASES if c["case_id"] == "CASE-12-HISTORICAL-PORTAL"][0]
             c13 = [c for c in CASES if c["case_id"] == "CASE-13-302-RELATIVE"][0]
@@ -474,7 +656,7 @@ def main():
             ]
             print("MERO-STB-LAB: INTERACTIVE THREE-CASE SESSION")
         else:
-            print("Usage: run_differential_campaign.py [--historical-case-15 | --sequence-redirect-test | --interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
+            print("Usage: run_differential_campaign.py [--historical-case-15 | --sequence-reduction-core | --sequence-json-keys | --sequence-redirect-test | --interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
             sys.exit(2)
 
         results = []
