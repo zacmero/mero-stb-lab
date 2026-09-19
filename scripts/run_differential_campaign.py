@@ -311,9 +311,10 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
     response_delivered = False
     delivered_tx = None
 
+    unprocessed_txs = []
     while time.time() - wait_start < wait_timeout:
         txs, offset = read_new_transactions(offset)
-        for tx in txs:
+        for i, tx in enumerate(txs):
             if tx.get("source") != "RECEIVER_HW":
                 continue
             
@@ -331,6 +332,7 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
                         tx_sha == expected_resp_sha256):
                     response_delivered = True
                     delivered_tx = tx
+                    unprocessed_txs = txs[i+1:]
                     print(f"\n  [+] MATCHING REQUEST DELIVERED from {tx.get('client')}:")
                     print(f"      Path:        {tx.get('path')}")
                     print(f"      Status:      HTTP {tx.get('response_status')}")
@@ -372,8 +374,14 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
 
     is_302_case = (case_data.get("bussola_status") == 302 or "302" in case_id or case_id.endswith("-302") or "-PORTAL" in case_id)
 
+    pending_txs = list(unprocessed_txs)
     while time.time() - obs_start < observe_timeout:
-        txs, offset = read_new_transactions(offset)
+        if pending_txs:
+            txs = pending_txs
+            pending_txs = []
+        else:
+            txs, offset = read_new_transactions(offset)
+
         for tx in txs:
             if tx.get("source") != "RECEIVER_HW":
                 continue
