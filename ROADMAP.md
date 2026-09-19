@@ -30,7 +30,9 @@
 | **APP-API-009B** | Deep Ekioh capability inventory | **COMPLETED** | 128 observations; raw Ekioh connection/server/timer helpers and a scriptable-plugin MIME surfaced for bounded follow-up. |
 | **APP-API-009C** | Bounded raw Ekioh connection lab | **COMPLETED, LIMITED** | Real connect/send/receive and listen/close objects found; tested client did not connect and tested listener remained LAN-filtered. |
 | **APP-API-009D** | Connection state and native plugin probe | **COMPLETED, LIMITED** | Cross-boot `localStorage` confirmed. Connection calls emitted no SYN; XHTML-in-SVG plugin object was unavailable through the DOM. |
-| **APP-API-009E** | SVG-native plugin instantiation | **NEXT** | Create the advertised scriptable-plugin object without `foreignObject`; reflect only, with no unknown method calls. |
+| **APP-API-009E** | Comprehensive runtime capability mapper | **COMPLETED, LIMITED** | Module activation negative; transport signatures inert; storage/XML/standard timer positive; concurrent reports stalled full inventory. |
+| **RUNTIME-MAP-009F** | Sequential capability mapper | **COMPLETED, POSITIVE** | Automatic 77-field run completed; native timer objects exposed; exact ARP validation replaced stale ping/neighbor identity. |
+| **TIMER-EVENT-009G** | Native timer event behavior | **NEXT** | Attach a bounded listener, start one timer once, record firing/state, stop it, and clean up automatically. |
 | **MEDIA-010** | Local media pipeline probe | **COMPLETED, LIMITED** | SVG audio API invoked and WAV fetched; no audible playback. Standard HTML media playback APIs absent. |
 | **NETWORK-SERVICE-011** | Exact-device LAN service inventory | **COMPLETED** | All TCP ports silently filtered; UDP probes received no identifying response. |
 | **BOOT-KEY-001** | Front-panel & remote control boot straps | **QUEUED** | Zero-cost hardware exploration. |

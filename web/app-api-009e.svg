@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111d"/>
+  <text x="640" y="58" fill="#35f2a1" font-family="sans-serif" font-size="38" font-weight="bold" text-anchor="middle">APP-API-009E: CAPABILITY MAPPER</text>
+  <text id="phase" x="640" y="94" fill="#a9bdd3" font-family="sans-serif" font-size="20" text-anchor="middle">Starting automatic inventory</text>
+  <g id="buttons" font-family="sans-serif" font-size="22">
+    <g id="b0"><rect x="110" y="128" width="1060" height="58" rx="8" fill="#17304a"/><text x="145" y="165" fill="white">1  MAP PLUGIN CONSTRUCTION + PROTOTYPES</text></g>
+    <g id="b1"><rect x="110" y="198" width="1060" height="58" rx="8" fill="#17304a"/><text x="145" y="235" fill="white">2  MAP EKIOH + PLATFORM OBJECT GRAPHS</text></g>
+    <g id="b2"><rect x="110" y="268" width="1060" height="58" rx="8" fill="#17304a"/><text x="145" y="305" fill="white">3  TEST BOUNDED CONNECTION SIGNATURES</text></g>
+    <g id="b3"><rect x="110" y="338" width="1060" height="58" rx="8" fill="#17304a"/><text x="145" y="375" fill="white">4  MAP DOM / XML / STORAGE / TIMERS</text></g>
+    <g id="b4"><rect x="110" y="408" width="1060" height="58" rx="8" fill="#17304a"/><text x="145" y="445" fill="white">5  RE-RUN FULL READ-ONLY INVENTORY</text></g>
+    <g id="b5"><rect x="110" y="478" width="1060" height="58" rx="8" fill="#17304a"/><text x="145" y="515" fill="white">6  END NETWORK SESSION (COLD REBOOT EXITS APP)</text></g>
+  </g>
+  <text id="detail" x="640" y="590" fill="#ffd166" font-family="sans-serif" font-size="22" text-anchor="middle">Use UP/DOWN and OK. Run one test at a time.</text>
+  <text id="counter" x="640" y="626" fill="#8da5bd" font-family="monospace" font-size="18" text-anchor="middle">Reports: 0</text>
+  <text x="640" y="674" fill="#ef6f6c" font-family="sans-serif" font-size="18" text-anchor="middle">End Session restores the network only. This firmware requires a cold reboot to leave the foreground document.</text>
+  <g id="dynamic"/>
+  <script type="application/ecmascript"><![CDATA[
+var HOST="191.32.31.251", PORT=39009, selected=0, reports=0, sequence=0, active=[];
+var labels=["plugin","platform","connections","runtime","inventory","end"];
+function byId(id){return document.getElementById(id);}
+function text(id,value){try{byId(id).firstChild.data=String(value);}catch(e){}}
+function report(name,value){
+  try{
+    if(name=="event"||name=="state") name=name+"."+(++sequence);
+    var x=new XMLHttpRequest();
+    x.open("GET","http://"+HOST+"/app-api-009e/report?name="+encodeURIComponent(name)+"&value="+encodeURIComponent(String(value)),true);
+    x.send(null); reports++; text("counter","Reports: "+reports);
+  }catch(e){}
+}
+function names(value){
+  var out=[], key;
+  try{if(Object.getOwnPropertyNames) return Object.getOwnPropertyNames(value);}catch(e){}
+  try{for(key in value) out[out.length]=key;}catch(e2){}
+  return out;
+}
+function primitive(value){
+  var t=typeof value;
+  if(value===null) return "null";
+  if(t=="string"||t=="number"||t=="boolean"||t=="undefined") return t+":"+String(value).substring(0,240);
+  if(t=="function") return "function:length="+value.length;
+  return t;
+}
+function reflect(prefix,value,depth){
+  var level=0, object=value, list, i, member, descriptor, seen=[];
+  report(prefix+".type",primitive(value));
+  while(object!==null && typeof object!="undefined" && level<=depth){
+    try{list=names(object); report(prefix+".p"+level+".names",list.slice(0,160).join(","));}
+    catch(e){report(prefix+".p"+level+".names.error",e); break;}
+    for(i=0;i<list.length && i<160;i++){
+      if(seen[list[i]]) continue; seen[list[i]]=true;
+      try{member=value[list[i]]; report(prefix+".member."+list[i],primitive(member));}
+      catch(me){report(prefix+".member."+list[i],"error:"+me);}
+      try{
+        if(Object.getOwnPropertyDescriptor){
+          descriptor=Object.getOwnPropertyDescriptor(object,list[i]);
+          if(descriptor) report(prefix+".descriptor."+list[i],"w="+descriptor.writable+",e="+descriptor.enumerable+",c="+descriptor.configurable+",get="+(typeof descriptor.get)+",set="+(typeof descriptor.set));
+        }
+      }catch(de){}
+    }
+    try{object=Object.getPrototypeOf(object);}catch(pe){report(prefix+".prototype.error",pe);break;}
+    level++;
+  }
+}
+function appendAndMap(prefix,element){
+  try{
+    element.setAttribute("id","probe_"+prefix.replace(/[^A-Za-z0-9]/g,"_"));
+    element.setAttribute("type","application/mozilla-npruntime-scriptable-plugin");
+    element.setAttribute("width","1"); element.setAttribute("height","1");
+    byId("dynamic").appendChild(element);
+    reflect(prefix+".created",element,3);
+    reflect(prefix+".lookup",byId(element.getAttribute("id")),3);
+    try{reflect(prefix+".object",element.object,3);}catch(e1){report(prefix+".object.error",e1);}
+    try{reflect(prefix+".contentDocument",element.contentDocument,2);}catch(e2){report(prefix+".contentDocument.error",e2);}
+  }catch(e){report(prefix+".create.error",e);}
+}
+function mapPlugin(){
+  text("phase","Mapping plugin construction variants"); report("event","plugin-start");
+  try{reflect("plugin.navigator.plugins",navigator.plugins,3);}catch(e){report("plugin.navigator.plugins.error",e);}
+  try{reflect("plugin.navigator.mimeTypes",navigator.mimeTypes,3);}catch(e2){report("plugin.navigator.mimeTypes.error",e2);}
+  try{reflect("plugin.mime.named",navigator.mimeTypes["application/mozilla-npruntime-scriptable-plugin"],4);}catch(e3){report("plugin.mime.named.error",e3);}
+  try{reflect("plugin.registry.named",navigator.plugins["Mozilla NPRuntime Scriptable Plug-in"],4);}catch(e4){report("plugin.registry.named.error",e4);}
+  try{appendAndMap("plugin.svg.object",document.createElementNS("http://www.w3.org/2000/svg","object"));}catch(e5){report("plugin.svg.object.error",e5);}
+  try{appendAndMap("plugin.xhtml.object",document.createElementNS("http://www.w3.org/1999/xhtml","object"));}catch(e6){report("plugin.xhtml.object.error",e6);}
+  try{appendAndMap("plugin.plain.object",document.createElement("object"));}catch(e7){report("plugin.plain.object.error",e7);}
+  try{appendAndMap("plugin.svg.embed",document.createElementNS("http://www.w3.org/2000/svg","embed"));}catch(e8){report("plugin.svg.embed.error",e8);}
+  report("event","plugin-complete"); text("phase","Plugin map complete");
+}
+function mapPlatform(){
+  var list=["ekiohPlatformInfo","SagemcomDFB","Connection","ConnectionServer","ConnectionEvent","AsyncURLStatus","XMLHttpRequest","DOMParser","XMLSerializer"],i;
+  text("phase","Mapping platform object graphs"); report("event","platform-start");
+  for(i=0;i<list.length;i++){try{reflect("global."+list[i],window[list[i]],5);}catch(e){report("global."+list[i]+".error",e);}}
+  list=["createConnection","createConnectionServer","createTimer","getURL","postURL","parseXML","print","setHTTPDigestCredentials","suspendGC"];
+  for(i=0;i<list.length;i++){try{reflect("function."+list[i],window[list[i]],3);}catch(e2){report("function."+list[i]+".error",e2);}}
+  report("event","platform-complete"); text("phase","Platform map complete");
+}
+function closeObject(prefix,obj){try{if(obj&&typeof obj.close=="function") report(prefix+".close",primitive(obj.close()));}catch(e){report(prefix+".close.error",e);}}
+function connectionVariant(prefix,args){
+  var obj, result;
+  try{
+    if(args.length==0)obj=createConnection();
+    else if(args.length==1)obj=createConnection(args[0]);
+    else if(args.length==2)obj=createConnection(args[0],args[1]);
+    else obj=createConnection(args[0],args[1],args[2]);
+    active[active.length]=obj; reflect(prefix+".factory",obj,3);
+    if(obj&&typeof obj.connect=="function"){
+      try{result=obj.connect(HOST,PORT);report(prefix+".connect.number",primitive(result));}catch(e1){report(prefix+".connect.number.error",e1);}
+      try{result=obj.connect(HOST,String(PORT));report(prefix+".connect.string",primitive(result));}catch(e2){report(prefix+".connect.string.error",e2);}
+      try{result=obj.connect.call(obj,HOST,PORT);report(prefix+".connect.call",primitive(result));}catch(e3){report(prefix+".connect.call.error",e3);}
+      try{report(prefix+".connected",primitive(obj.connected));}catch(e4){report(prefix+".connected.error",e4);}
+    }
+    closeObject(prefix,obj);
+  }catch(e){report(prefix+".factory.error",e);}
+}
+function testConnections(){
+  text("phase","Testing bounded connection signatures"); report("event","connections-start");
+  if(typeof createConnection!="function"){report("connections.result","factory-absent");return;}
+  connectionVariant("connection.empty",[]);
+  connectionVariant("connection.uri",["tcp://"+HOST+":"+PORT]);
+  connectionVariant("connection.hostport",[HOST,PORT]);
+  connectionVariant("connection.triplet",["tcp",HOST,PORT]);
+  report("event","connections-complete"); text("phase","Connection signatures complete");
+}
+function mapRuntime(){
+  var marker="009e-"+(new Date().getTime()), parsed, timer;
+  text("phase","Mapping DOM, XML, storage and timers"); report("event","runtime-start");
+  try{localStorage.setItem("mero_009e",marker);report("runtime.localStorage.roundtrip",localStorage.getItem("mero_009e"));}catch(e){report("runtime.localStorage.error",e);}
+  try{sessionStorage.setItem("mero_009e",marker);report("runtime.sessionStorage.roundtrip",sessionStorage.getItem("mero_009e"));}catch(e2){report("runtime.sessionStorage.error",e2);}
+  try{document.cookie="mero_009e="+marker;report("runtime.cookie",document.cookie);}catch(e3){report("runtime.cookie.error",e3);}
+  try{parsed=parseXML("<root><item value='1'/></root>",document);reflect("runtime.parseXML",parsed,3);}catch(e4){report("runtime.parseXML.error",e4);}
+  try{reflect("runtime.document",document,4);reflect("runtime.documentElement",document.documentElement,4);reflect("runtime.implementation",document.implementation,4);}catch(e5){report("runtime.dom.error",e5);}
+  try{timer=createTimer(25,function(){report("runtime.createTimer.callback","fired");});reflect("runtime.createTimer",timer,3);}catch(e6){report("runtime.createTimer.error",e6);}
+  try{setTimeout(function(){report("runtime.setTimeout.callback","fired");},50);report("runtime.setTimeout","scheduled");}catch(e7){report("runtime.setTimeout.error",e7);}
+  report("event","runtime-complete"); text("phase","Runtime map complete");
+}
+function fullInventory(){
+  text("phase","Running full read-only inventory"); report("event","inventory-start");
+  var roots=[window,document,navigator,window.location,window.history,window.screen],namesRoot=["window","document","navigator","location","history","screen"],i;
+  for(i=0;i<roots.length;i++){try{reflect("inventory."+namesRoot[i],roots[i],4);}catch(e){report("inventory."+namesRoot[i]+".error",e);}}
+  try{report("inventory.window.enumerable",names(window).slice(0,400).join(","));}catch(e2){report("inventory.window.error",e2);}
+  report("event","inventory-complete"); text("phase","Full inventory complete");
+}
+function endSession(){
+  var i,x; report("event","end-session-selected");
+  for(i=0;i<active.length;i++)closeObject("end.connection."+i,active[i]);
+  text("phase","Network cleanup requested; cold reboot exits app");
+  try{x=new XMLHttpRequest();x.open("GET","http://"+HOST+"/app-api/end-session",true);x.send(null);}catch(e){report("end.error",e);}
+}
+function update(){var i;for(i=0;i<6;i++){try{byId("b"+i).firstChild.setAttribute("fill",i==selected?"#176b63":"#17304a");}catch(e){}}text("detail","Selected: "+(selected+1)+" "+labels[selected]);}
+function key(e){var code=e.keyCode||e.which;report("event","key:"+code);if(code==38){selected=(selected+5)%6;update();}else if(code==40){selected=(selected+1)%6;update();}else if(code==13){try{if(selected==0)mapPlugin();else if(selected==1)mapPlatform();else if(selected==2)testConnections();else if(selected==3)mapRuntime();else if(selected==4)fullInventory();else endSession();}catch(actionError){report("action."+selected+".error",actionError);text("phase","Test failed: "+actionError);}}}
+try{document.addEventListener("keydown",key,false);document.documentElement.focus();}catch(e){report("startup.key.error",e);}
+update(); report("probe.version","APP-API-009E-v1"); report("startup.previousPersistent",localStorage.getItem("mero_probe_009b_persist"));
+try{reflect("startup.mime",navigator.mimeTypes["application/mozilla-npruntime-scriptable-plugin"],3);}catch(e2){report("startup.mime.error",e2);}
+text("phase","Ready: choose a mapper");
+  ]]></script>
+</svg>

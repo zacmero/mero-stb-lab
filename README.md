@@ -58,6 +58,8 @@ flowchart TD
 - **[APP-API-009B + MEDIA-010](docs/experiments/app-api-009b-media-010.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Found raw Ekioh connection/server helpers and a scriptable-plugin MIME; SVG audio fetched the WAV but produced no audible playback. Receiver-authorized host cleanup worked.
 - **[APP-API-009C](docs/experiments/app-api-009c.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Real Ekioh client/server socket objects found; the default-state outbound attempt did not connect and the tested receiver listener remained LAN-filtered.
 - **[APP-API-009D](docs/experiments/app-api-009d.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Confirmed cross-boot `localStorage`; socket activation and XHTML-in-SVG plugin instantiation remained unresolved.
+- **[APP-API-009E](docs/experiments/app-api-009e.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Mapped advertised module, Ekioh transport, DOM/XML/storage/timer surfaces; concurrent result flooding stalled the final inventory.
+- **[RUNTIME-MAP-009F](docs/experiments/runtime-map-009f.md): COMPLETED (RESULT: POSITIVE)** — Automatic sequential mapping completed; exposed native timer objects and corrected boot identity using exact ARP validation.
 - **[NETWORK-SERVICE-011](docs/experiments/network-service-011.md): COMPLETED (RESULT: NO LAN-REACHABLE SERVICE IDENTIFIED)** — All TCP ports silently filtered; bounded UDP and passive probes identified no responding maintenance or discovery service.
 
 ---

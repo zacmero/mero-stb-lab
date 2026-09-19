@@ -127,13 +127,15 @@ network_health_check() {
 resolve_exact_neighbor() {
     local ip="$1"
     local expected_mac="$2"
-    local observed_mac
+    local arp_output observed_mac
 
     if ! ping -I "${IFACE}" -c 1 -W 2 "${ip}" >/dev/null; then
         echo "[-] ${ip} did not answer the identity-validation ping." >&2
         exit 1
     fi
     observed_mac="$(ip neigh show to "${ip}" dev "${IFACE}" | awk '$0 !~ /FAILED|INCOMPLETE/ { for (i=1; i<NF; i++) { if ($i == "lladdr") print tolower($(i+1)) } }' | sort -u)"
+    arp_output="$(arping -I "${IFACE}" -c 2 -w 3 "${ip}" 2>&1 || true)"
+    observed_mac="$(printf '%s\n' "${arp_output}" | grep -Eio '([0-9a-f]{2}:){5}[0-9a-f]{2}' | tr '[:upper:]' '[:lower:]' | sort -u)"
     if [ "${observed_mac}" != "${expected_mac}" ]; then
         echo "[-] ${ip} did not resolve uniquely to expected MAC ${expected_mac}; observed: ${observed_mac:-none}" >&2
         exit 1
@@ -145,7 +147,7 @@ if [ "${EUID}" -ne 0 ]; then
     exit 1
 fi
 
-for command_name in ip ping getent curl iptables iptables-save sysctl tcpdump python3 awk sort grep; do
+for command_name in ip ping arping getent curl iptables iptables-save sysctl tcpdump python3 awk sort grep tr; do
     require_command "${command_name}"
 done
 
@@ -167,16 +169,18 @@ if [ -n "${RECEIVER_IP}" ]; then
         echo "[-] RECEIVER_IP is not an IPv4 address: ${RECEIVER_IP}" >&2
         exit 1
     fi
-    echo "[*] Probing configured receiver candidate ${RECEIVER_IP} for exact MAC verification..."
-    ping -I "${IFACE}" -c 1 -W 2 "${RECEIVER_IP}" >/dev/null 2>&1 || true
+    echo "[*] Validating configured receiver ${RECEIVER_IP} against exact MAC ${TARGET_MAC}..."
+    resolve_exact_neighbor "${RECEIVER_IP}" "${TARGET_MAC}"
+    TARGET_IPS=("${RECEIVER_IP}")
+else
+    # Stale prior DHCP mappings are common after a cold boot. Only consult the
+    # whole neighbor cache when no actively verified current IP was supplied.
+    mapfile -t TARGET_IPS < <(
+        ip neigh show dev "${IFACE}" |
+            awk -v mac="${TARGET_MAC}" '$0 !~ /FAILED|INCOMPLETE/ { for (i=1; i<NF; i++) { if ($i == "lladdr" && tolower($(i+1)) == tolower(mac)) print $1 } }' |
+            sort -u
+    )
 fi
-
-# 1. Check existing neighbor cache
-mapfile -t TARGET_IPS < <(
-    ip neigh show dev "${IFACE}" |
-        awk -v mac="${TARGET_MAC}" '$0 !~ /FAILED|INCOMPLETE/ { for (i=1; i<NF; i++) { if ($i == "lladdr" && tolower($(i+1)) == tolower(mac)) print $1 } }' |
-        sort -u
-)
 
 # 2. If absent from neighbor cache, passively capture DHCP/ARP broadcasts for up to 120s
 if [ "${#TARGET_IPS[@]}" -eq 0 ]; then
