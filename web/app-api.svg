@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111f"/>
+  <rect x="65" y="45" width="1150" height="630" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="5"/>
+  <text x="640" y="112" fill="#35f2a1" font-family="sans-serif" font-size="42" font-weight="bold" text-anchor="middle">APP-API-009B + MEDIA-010</text>
+  <text x="640" y="155" fill="#a9bdd3" font-family="sans-serif" font-size="22" text-anchor="middle">Deep safe API inventory and local media probe</text>
+  <text id="phase" x="105" y="220" fill="#ffffff" font-family="sans-serif" font-size="25">API inventory: RUNNING</text>
+  <text id="detail" x="105" y="260" fill="#a9bdd3" font-family="sans-serif" font-size="21">Evidence is being saved on the computer.</text>
+  <text x="105" y="305" fill="#a9bdd3" font-family="sans-serif" font-size="20">No shell, firmware, USB, tuner, or privileged method is invoked.</text>
+  <rect id="mediaButton" x="150" y="365" width="980" height="82" rx="14" fill="#173451" stroke="#ffd166" stroke-width="6"/>
+  <text x="640" y="417" fill="#ffffff" font-family="sans-serif" font-size="29" font-weight="bold" text-anchor="middle">RUN LOCAL AUDIO TEST</text>
+  <rect id="endButton" x="150" y="475" width="980" height="82" rx="14" fill="#173451" stroke="#35506c" stroke-width="3"/>
+  <text x="640" y="527" fill="#ffffff" font-family="sans-serif" font-size="29" font-weight="bold" text-anchor="middle">END SESSION AND CLEAN NETWORK</text>
+  <text x="640" y="610" fill="#60c8ff" font-family="sans-serif" font-size="22" text-anchor="middle">UP / DOWN selects. OK activates. End Session stops the PC harness.</text>
+  <text id="keyStatus" x="640" y="646" fill="#a9bdd3" font-family="sans-serif" font-size="18" text-anchor="middle">Selected: RUN LOCAL AUDIO TEST</text>
+  <audio id="audioProbe" xlink:href="http://191.32.31.251/media/test.wav" begin="indefinite"/>
+  <script type="text/ecmascript"><![CDATA[
+    var selected = 0;
+    var reportSequence = 0;
+
+    function report(name, value) {
+      try {
+        var xhr = new XMLHttpRequest();
+        var uniqueName = name;
+        if (name == "event") { reportSequence += 1; uniqueName = name + "." + reportSequence; }
+        xhr.open("GET", "http://191.32.31.251/app-api/report?name=" + encodeURIComponent(uniqueName) + "&value=" + encodeURIComponent(String(value)), true);
+        xhr.send(null);
+      } catch (error) {}
+    }
+
+    function safeType(owner, name, prefix) {
+      var value = "undefined";
+      try { value = typeof owner[name]; } catch (error) { value = "error:" + error; }
+      report(prefix + "." + name, value);
+    }
+
+    function propertyNames(owner, prefix) {
+      var names = [];
+      var index;
+      try {
+        if (typeof Object.getOwnPropertyNames == "function") {
+          names = Object.getOwnPropertyNames(owner);
+          report(prefix + ".ownPropertyNames.support", "yes");
+        } else {
+          report(prefix + ".ownPropertyNames.support", "no");
+          for (index in owner) { names[names.length] = index; }
+        }
+        for (index = 0; index < names.length && index < 240; index += 24) {
+          report(prefix + ".properties." + (index / 24), names.slice(index, index + 24).join(","));
+        }
+        report(prefix + ".propertyCount", names.length);
+      } catch (error) { report(prefix + ".properties.error", String(error)); }
+    }
+
+    function probeStorage() {
+      var stamp = String(new Date().getTime());
+      try {
+        var oldValue = localStorage.getItem("mero_probe_009b_persist");
+        report("localStorage.previousPersistent", oldValue === null ? "none" : oldValue);
+        localStorage.setItem("mero_probe_009b_temp", stamp);
+        report("localStorage.roundTrip", localStorage.getItem("mero_probe_009b_temp") == stamp ? "pass" : "fail");
+        localStorage.removeItem("mero_probe_009b_temp");
+        localStorage.setItem("mero_probe_009b_persist", stamp);
+        report("localStorage.persistentWritten", stamp);
+        report("localStorage.length", localStorage.length);
+        safeType(localStorage, "remainingSpace", "localStorage");
+        safeType(localStorage, "quota", "localStorage");
+      } catch (error) { report("localStorage.error", String(error)); }
+      try {
+        sessionStorage.setItem("mero_probe_009b", stamp);
+        report("sessionStorage.roundTrip", sessionStorage.getItem("mero_probe_009b") == stamp ? "pass" : "fail");
+        sessionStorage.removeItem("mero_probe_009b");
+        report("sessionStorage.length", sessionStorage.length);
+      } catch (error2) { report("sessionStorage.error", String(error2)); }
+      try {
+        document.cookie = "mero_probe_009b=" + stamp + "; path=/";
+        report("cookie.roundTrip", document.cookie.indexOf("mero_probe_009b=" + stamp) >= 0 ? "pass" : "fail");
+        document.cookie = "mero_probe_009b=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+      } catch (error3) { report("cookie.error", String(error3)); }
+    }
+
+    function probeNavigator() {
+      var index;
+      report("navigator.userAgent", navigator.userAgent || "");
+      report("navigator.platform", navigator.platform || "");
+      report("navigator.cookieEnabled", String(navigator.cookieEnabled));
+      propertyNames(navigator, "navigator");
+      try {
+        report("navigator.plugins.length", navigator.plugins ? navigator.plugins.length : "absent");
+        for (index = 0; navigator.plugins && index < navigator.plugins.length && index < 32; index += 1) {
+          report("navigator.plugin." + index, navigator.plugins[index].name + "|" + navigator.plugins[index].filename);
+        }
+      } catch (error) { report("navigator.plugins.error", String(error)); }
+      try {
+        report("navigator.mimeTypes.length", navigator.mimeTypes ? navigator.mimeTypes.length : "absent");
+        for (index = 0; navigator.mimeTypes && index < navigator.mimeTypes.length && index < 64; index += 1) {
+          report("navigator.mimeType." + index, navigator.mimeTypes[index].type + "|" + navigator.mimeTypes[index].description);
+        }
+      } catch (error2) { report("navigator.mimeTypes.error", String(error2)); }
+    }
+
+    function probePlatform() {
+      var candidates = ["platform", "manufacturer", "model", "serialNumber", "firmwareVersion", "softwareVersion", "hardwareVersion", "osName", "osVersion", "name", "getVersion"];
+      var globals = ["XMLHttpRequest", "getURL", "WebSocket", "Worker", "FileReader", "indexedDB", "openDatabase", "applicationManager", "oipfObjectFactory", "broadcast", "dvb", "media", "usb"];
+      var index;
+      for (index = 0; index < globals.length; index += 1) { safeType(window, globals[index], "window"); }
+      safeType(window, "ekiohPlatformInfo", "window");
+      try {
+        if (window.ekiohPlatformInfo) {
+          propertyNames(window.ekiohPlatformInfo, "ekiohPlatformInfo");
+          for (index = 0; index < candidates.length; index += 1) { safeType(window.ekiohPlatformInfo, candidates[index], "ekiohPlatformInfo"); }
+          try { propertyNames(Object.getPrototypeOf(window.ekiohPlatformInfo), "ekiohPlatformInfo.prototype"); }
+          catch (prototypeError) { report("ekiohPlatformInfo.prototype.error", String(prototypeError)); }
+        }
+      } catch (error) { report("ekiohPlatformInfo.error", String(error)); }
+    }
+
+    function canPlay(element, label) {
+      var types = ["audio/wav", "audio/mpeg", "audio/ogg", "video/mp4", "video/mpeg", "video/mp2t", "application/vnd.apple.mpegurl"];
+      var index;
+      report(label + ".element", element ? "created" : "absent");
+      if (!element) { return; }
+      safeType(element, "play", label); safeType(element, "pause", label); safeType(element, "canPlayType", label);
+      for (index = 0; index < types.length; index += 1) {
+        try { report(label + ".canPlayType." + types[index], typeof element.canPlayType == "function" ? element.canPlayType(types[index]) : "unavailable"); }
+        catch (error) { report(label + ".canPlayType." + types[index], "error:" + error); }
+      }
+    }
+
+    function probeMedia() {
+      var htmlAudio = null; var htmlVideo = null;
+      try { htmlAudio = document.createElementNS("http://www.w3.org/1999/xhtml", "audio"); } catch (error) {}
+      try { htmlVideo = document.createElementNS("http://www.w3.org/1999/xhtml", "video"); } catch (error2) {}
+      canPlay(htmlAudio, "htmlAudio"); canPlay(htmlVideo, "htmlVideo");
+      try {
+        var svgAudio = document.getElementById("audioProbe");
+        safeType(svgAudio, "beginElement", "svgAudio"); safeType(svgAudio, "endElement", "svgAudio"); propertyNames(svgAudio, "svgAudio");
+      } catch (error3) { report("svgAudio.error", String(error3)); }
+    }
+
+    function probeDomAndLifecycle() {
+      var features = [["SVG", "1.2"], ["SMIL", "2.0"], ["HTML", "2.0"], ["Views", "2.0"]];
+      var index;
+      safeType(window, "onload", "lifecycle"); safeType(window, "onunload", "lifecycle");
+      safeType(window, "onbeforeunload", "lifecycle"); safeType(document, "visibilityState", "lifecycle");
+      try {
+        for (index = 0; index < features.length; index += 1) {
+          report("dom.hasFeature." + features[index][0], document.implementation && typeof document.implementation.hasFeature == "function" ? String(document.implementation.hasFeature(features[index][0], features[index][1])) : "unavailable");
+        }
+      } catch (error) { report("dom.hasFeature.error", String(error)); }
+      try {
+        var objectProbe = document.createElementNS("http://www.w3.org/1999/xhtml", "object");
+        report("htmlObject.element", objectProbe ? "created" : "absent");
+        safeType(objectProbe, "type", "htmlObject"); safeType(objectProbe, "data", "htmlObject");
+        safeType(objectProbe, "contentDocument", "htmlObject");
+      } catch (error2) { report("htmlObject.error", String(error2)); }
+    }
+
+    function deepProbe() {
+      report("probe.version", "APP-API-009B+MEDIA-010-v1");
+      report("location.href", location.href); report("location.protocol", location.protocol);
+      report("document.URL", document.URL || ""); report("document.referrer", document.referrer || "");
+      safeType(document, "implementation", "document");
+      propertyNames(document, "document"); propertyNames(window, "window");
+      probeNavigator(); probePlatform(); probeStorage(); probeMedia(); probeDomAndLifecycle();
+      try { document.getElementById("phase").firstChild.data = "API inventory: COMPLETE"; } catch (error) {}
+      report("probe.complete", "yes");
+    }
+
+    function updateSelection() {
+      try {
+        document.getElementById("mediaButton").setAttribute("stroke", selected == 0 ? "#ffd166" : "#35506c");
+        document.getElementById("mediaButton").setAttribute("stroke-width", selected == 0 ? "6" : "3");
+        document.getElementById("endButton").setAttribute("stroke", selected == 1 ? "#ffd166" : "#35506c");
+        document.getElementById("endButton").setAttribute("stroke-width", selected == 1 ? "6" : "3");
+        document.getElementById("keyStatus").firstChild.data = selected == 0 ? "Selected: RUN LOCAL AUDIO TEST" : "Selected: END SESSION AND CLEAN NETWORK";
+      } catch (error) {}
+    }
+
+    function runMediaTest() {
+      report("event", "media-test-selected");
+      try {
+        var audio = document.getElementById("audioProbe");
+        if (audio && typeof audio.beginElement == "function") { audio.beginElement(); report("media.svgAudio.beginElement", "invoked"); }
+        else { report("media.svgAudio.beginElement", "unavailable"); }
+      } catch (error) { report("media.svgAudio.beginElement", "error:" + error); }
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState == 4) {
+            try {
+              report("media.wav.xhr", "status=" + xhr.status + ",bytes=" + xhr.responseText.length);
+              document.getElementById("detail").firstChild.data = "Media bytes returned. Check whether the quiet tone was audible.";
+            } catch (responseError) { report("media.wav.xhr", "response-error:" + responseError); }
+          }
+        };
+        xhr.open("GET", "http://191.32.31.251/media/test.wav?source=xhr", true); xhr.send(null);
+      } catch (xhrError) { report("media.wav.xhr", "error:" + xhrError); }
+    }
+
+    function endSession() {
+      report("event", "end-session-selected");
+      try {
+        document.getElementById("phase").firstChild.data = "SESSION END REQUESTED";
+        document.getElementById("detail").firstChild.data = "The computer is restoring the network. Cold reboot is still required to leave this screen.";
+      } catch (error) {}
+      try { var xhr = new XMLHttpRequest(); xhr.open("GET", "http://191.32.31.251/app-api/end-session", true); xhr.send(null); }
+      catch (error2) { report("endSession.error", String(error2)); }
+    }
+
+    function keyHandler(event) {
+      var code = event.keyCode || event.which || 0;
+      report("event", "key:" + code);
+      if (code == 38 || code == 40 || code == 37 || code == 39) { selected = selected == 0 ? 1 : 0; updateSelection(); }
+      else if (code == 13) { if (selected == 0) { runMediaTest(); } else { endSession(); } }
+    }
+
+    try { document.addEventListener("keydown", keyHandler, false); } catch (error) {}
+    try { document.documentElement.focus(); } catch (error2) {}
+    updateSelection(); deepProbe();
+  ]]></script>
+</svg>

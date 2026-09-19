@@ -11,9 +11,12 @@ import time
 import json
 import hashlib
 import html
+import math
+import struct
 import urllib.parse
 import ssl
 import signal
+import socketserver
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -66,6 +69,29 @@ REMOTE_MAP_STATE = {
     "hex": None,
     "timestamp": None,
 }
+APP_API_LOCK = threading.Lock()
+APP_API_RESULTS = {}
+APP_API_009C_RESULTS = {}
+APP_API_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009b-media-010.json")
+APP_API_009C_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009c.json")
+CONNECTION_PROBE_LOG = os.path.join(CAPTURES_DIR, "app-api-009c-connections.jsonl")
+CONNECTION_PROBE_PORT = 39009
+END_SESSION_FILE = os.environ.get("MERO_END_SESSION_FILE", "")
+
+
+def make_test_wav():
+    """Return a quiet 500 ms PCM tone without a generated binary fixture."""
+    sample_rate = 8000
+    samples = []
+    for index in range(sample_rate // 2):
+        value = int(2500 * math.sin(2 * math.pi * 440 * index / sample_rate))
+        samples.append(struct.pack("<h", value))
+    pcm = b"".join(samples)
+    return (
+        b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVE"
+        + b"fmt " + struct.pack("<IHHIIHH", 16, 1, 1, sample_rate, sample_rate * 2, 2, 16)
+        + b"data" + struct.pack("<I", len(pcm)) + pcm
+    )
 
 
 def get_remote_map_state():
@@ -137,6 +163,38 @@ def classify_client(client_ip):
     except Exception:
         pass
     return "LAN_OTHER"
+
+
+class ConnectionProbeServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+class ConnectionProbeHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        source = classify_client(self.client_address[0])
+        self.request.settimeout(3.0)
+        try:
+            data = self.request.recv(4096)
+        except Exception:
+            data = b""
+        record = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + f".{int((time.time()%1)*1e6):06d}Z",
+            "source": source,
+            "client_ip": self.client_address[0],
+            "client_port": self.client_address[1],
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "text": data[:512].decode("latin1", errors="replace"),
+        }
+        with open(CONNECTION_PROBE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+        print(f"[+] APP-API-009C raw connection from {record['client_ip']} ({source}), {len(data)} bytes.", flush=True)
+        if source == "RECEIVER_HW":
+            try:
+                self.request.sendall(b"MERO-009C-REPLY\n")
+            except Exception:
+                pass
 
 class DifferentialHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -505,11 +563,113 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/launch.svg":
-            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/app.svg"
+            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/app-api-009c.svg"
             body = b""
             headers = {"Location": destination, "Cache-Control": "no-store"}
             self.send_exact_response(302, headers, body, case_id)
             self.record_transaction(method, self.path, req_body, 302, headers, body, case_id)
+            return
+
+        if path == "/app-api.svg":
+            with open(os.path.join(REPO_DIR, "web", "app-api.svg"), "rb") as f:
+                body = f.read()
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/app-api-009c.svg":
+            with open(os.path.join(REPO_DIR, "web", "app-api-009c.svg"), "rb") as f:
+                body = f.read()
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/app-api-009c/report":
+            source = classify_client(self.client_address[0])
+            name = query.get("name", [""])[0][:120]
+            value = query.get("value", [""])[0][:1200]
+            status = 200 if source == "RECEIVER_HW" and name else 403
+            if status == 200:
+                with APP_API_LOCK:
+                    APP_API_009C_RESULTS[name] = value
+                    temp_path = APP_API_009C_RESULTS_FILE + ".tmp"
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        json.dump(APP_API_009C_RESULTS, f, indent=2, sort_keys=True)
+                        f.write("\n")
+                    os.replace(temp_path, APP_API_009C_RESULTS_FILE)
+            body = b"ok" if status == 200 else b"forbidden"
+            headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        if path == "/app-api/end-session":
+            source = classify_client(self.client_address[0])
+            status = 200 if source == "RECEIVER_HW" and END_SESSION_FILE else 403
+            if status == 200:
+                temp_path = END_SESSION_FILE + ".tmp"
+                with open(temp_path, "w", encoding="utf-8") as f:
+                    f.write(f"{time.time()} {self.client_address[0]} {TARGET_MAC}\n")
+                os.replace(temp_path, END_SESSION_FILE)
+                body = b"cleanup-requested"
+                print("[+] Verified RECEIVER_HW requested END SESSION.", flush=True)
+            else:
+                body = b"forbidden"
+            headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        if path == "/media/test.wav":
+            body = make_test_wav()
+            headers = {"Content-Type": "audio/wav", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/app-api/report":
+            source = classify_client(self.client_address[0])
+            name = query.get("name", [""])[0][:120]
+            value = query.get("value", [""])[0][:1200]
+            status = 200 if source == "RECEIVER_HW" and name else 403
+            if status == 200:
+                with APP_API_LOCK:
+                    APP_API_RESULTS[name] = value
+                    temp_path = APP_API_RESULTS_FILE + ".tmp"
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        json.dump(APP_API_RESULTS, f, indent=2, sort_keys=True)
+                        f.write("\n")
+                    os.replace(temp_path, APP_API_RESULTS_FILE)
+            body = b"ok" if status == 200 else b"forbidden"
+            headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        if path == "/app-api/frame.svg":
+            with APP_API_LOCK:
+                results = list(APP_API_RESULTS.items())
+            rows = results[-8:]
+            row_svg = "".join(
+                f'<text x="110" y="{285 + index * 38}" fill="#d8e7f5" font-family="sans-serif" font-size="22">{html.escape(name)}: {html.escape(value)}</text>'
+                for index, (name, value) in enumerate(rows)
+            )
+            body = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720">
+  <rect width="1280" height="720" fill="#07111f"/>
+  <rect x="70" y="55" width="1140" height="610" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="4"/>
+  <text x="640" y="125" fill="#35f2a1" font-family="sans-serif" font-size="42" font-weight="bold" text-anchor="middle">APP-API-009</text>
+  <text x="640" y="175" fill="#a9bdd3" font-family="sans-serif" font-size="24" text-anchor="middle">Read-only Ekioh capability inventory</text>
+  <text x="110" y="230" fill="#ffd166" font-family="sans-serif" font-size="26">Observed capabilities: {len(results)}</text>
+  {row_svg}
+  <text x="640" y="630" fill="#60c8ff" font-family="sans-serif" font-size="22" text-anchor="middle">Press VIVO PLAY to exit</text>
+</svg>
+'''.encode("utf-8")
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
             return
 
         # -------------------------------------------------------------
@@ -731,21 +891,27 @@ class DifferentialHandler(BaseHTTPRequestHandler):
 
 http_server = None
 https_server = None
+connection_probe_server = None
 
 def sigterm_handler(signum, frame):
-    global http_server, https_server
+    global http_server, https_server, connection_probe_server
     if http_server:
         http_server.server_close()
     if https_server:
         https_server.server_close()
+    if connection_probe_server:
+        connection_probe_server.server_close()
     sys.exit(0)
 
 def run():
-    global http_server, https_server
+    global http_server, https_server, connection_probe_server
     signal.signal(signal.SIGTERM, sigterm_handler)
 
     http_server = HTTPServer(("0.0.0.0", HTTP_PORT), DifferentialHandler)
     print(f"[*] Differential HTTP interceptor on 0.0.0.0:{HTTP_PORT}", flush=True)
+
+    connection_probe_server = ConnectionProbeServer(("0.0.0.0", CONNECTION_PROBE_PORT), ConnectionProbeHandler)
+    print(f"[*] APP-API-009C raw TCP listener on 0.0.0.0:{CONNECTION_PROBE_PORT}", flush=True)
 
     if os.path.exists(CERT_FILE) and os.path.exists(KEY_FILE):
         https_server = HTTPServer(("0.0.0.0", HTTPS_PORT), DifferentialHandler)
@@ -763,6 +929,9 @@ def run():
         print(f"[*] HTTPS server listening on 0.0.0.0:{HTTPS_PORT}", flush=True)
 
     threads = []
+    t_connection = threading.Thread(target=connection_probe_server.serve_forever, daemon=True)
+    t_connection.start()
+    threads.append(t_connection)
     t_http = threading.Thread(target=http_server.serve_forever, daemon=True)
     t_http.start()
     threads.append(t_http)
@@ -782,6 +951,8 @@ def run():
             http_server.server_close()
         if https_server:
             https_server.server_close()
+        if connection_probe_server:
+            connection_probe_server.server_close()
         print("[*] Differential server shut down cleanly.", flush=True)
 
 if __name__ == "__main__":

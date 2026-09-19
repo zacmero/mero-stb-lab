@@ -24,7 +24,13 @@
 | **NET-PROVISION-004** | HTTP endpoint emulation & request capture | **COMPLETED** | **POSITIVE:** Captured `GET /tv-config/appConfigFit.json` from `Ekioh v2.2.4.5-sagem` browser; unencrypted JSON parsed. |
 | **NET-CONFIG-005** | Mock configuration delivery & custom portal injection | **COMPLETED** | **POSITIVE:** Stock Ekioh rendered a foreground custom SVG application and executed supplied ECMAScript; timers remain unverified. |
 | **APP-RUNTIME-006** | Dynamic application and remote-input capability matrix | **COMPLETED** | **POSITIVE:** Continuous SVG/DOM updates, HTTP polling, refreshed frames, and 35 remote key codes demonstrated. |
-| **REMOTE-MAP-007** | Named remote-control calibration | **COMPLETED** | 40/40 labels captured; canonical keymap published. Refreshed status frame and Vivo Play exit await hardware validation. |
+| **REMOTE-MAP-007** | Named remote-control calibration | **COMPLETED** | 40/40 labels captured; canonical keymap published. |
+| **APP-EXIT-008** | Top-level application lifecycle exit | **COMPLETED** | **NEGATIVE:** Browser lifecycle calls and remote/physical power controls did not exit the injected document. |
+| **APP-API-009** | Read-only Ekioh capability inventory | **COMPLETED** | **POSITIVE, LIMITED:** Network/storage primitives and `ekiohPlatformInfo` found; common native bridges absent. |
+| **APP-API-009B** | Deep Ekioh capability inventory | **COMPLETED** | 128 observations; raw Ekioh connection/server/timer helpers and a scriptable-plugin MIME surfaced for bounded follow-up. |
+| **APP-API-009C** | Bounded raw Ekioh connection lab | **COMPLETED, LIMITED** | Real connect/send/receive and listen/close objects found; tested client did not connect and tested listener remained LAN-filtered. |
+| **MEDIA-010** | Local media pipeline probe | **COMPLETED, LIMITED** | SVG audio API invoked and WAV fetched; no audible playback. Standard HTML media playback APIs absent. |
+| **NETWORK-SERVICE-011** | Exact-device LAN service inventory | **COMPLETED** | All TCP ports silently filtered; UDP probes received no identifying response. |
 | **BOOT-KEY-001** | Front-panel & remote control boot straps | **QUEUED** | Zero-cost hardware exploration. |
 | **USB-HID-001** | USB PC keyboard bootloader interruption | **QUEUED** | Zero-cost console testing. |
 | **BOOT-CHAIN-001** | Hardware UART sniffing & SPI flash dumping | **SHELVED** | Requires external flasher / UART adapter (deferred per budget constraint). |
@@ -32,6 +38,21 @@
 ---
 
 ## Active Phase Details: Zero-Cost Vectors
+
+## Application-to-OS Exploration Program
+
+The demonstrated foothold is an Ekioh SVG/ECMAScript application runtime. It supports rendering, timers, HTTP requests, refreshed subresources, and mapped remote input. It does not yet provide a shell, arbitrary native-code execution, unrestricted filesystem access, or direct device access.
+
+1. **APP-EXIT-008 — Application lifecycle exit.** **COMPLETED — NEGATIVE.** Vivo Play reached JavaScript, but `window.close()`, `top.close()`, self-window reopening, `history.back()`, and `history.go(-4)` did not return to native television. Remote and physical power controls also failed while the injected top-level document was active. Cold power removal is the only demonstrated escape.
+2. **APP-API-009 — Runtime capability inventory.** **COMPLETED — POSITIVE, LIMITED.** Read-only inventory demonstrated `XMLHttpRequest`, `getURL`, `localStorage`, `sessionStorage`, platform `SagemcomDFB`, and a non-enumerable `ekiohPlatformInfo` object. Standard WebSocket, Worker, FileReader, OIPF, DVB, media, and USB globals were absent.
+   **APP-API-009B — COMPLETED, POSITIVE.** The deep inventory captured 128 observations and exposed raw Ekioh helpers including `createConnection`, `createConnectionServer`, `createTimer`, `postURL`, binary conversion helpers, heap metrics, and a scriptable-plugin MIME. Their signatures and security boundaries remain untested; use a bounded APP-API-009C rather than blind invocation.
+3. **MEDIA-010 — Native media pipeline.** **COMPLETED, LIMITED.** SVG audio begin/end APIs exist and the receiver fetched the complete local WAV, but no tone was audible. Standard HTML media playback methods were absent. Other codecs and proprietary paths remain open.
+4. **NETWORK-SERVICE-011 — Exact-device service inventory.** **COMPLETED — NO LAN-REACHABLE SERVICE IDENTIFIED.** All 65,535 TCP ports silently filtered unsolicited probes. UDP top-200 and targeted protocol probes received no identifying response. Continue with receiver-initiated traffic and firmware evidence rather than broader inbound scanning.
+5. **USB-CAP-012 — USB capability matrix.** Test FAT32 storage detection, media discovery, configuration/import files, firmware packages, USB keyboard input, insertion events, local URI access, and application-visible USB APIs. USB-SCRIPT-002 ruled out only the tested automatic U-Boot script path; it did not rule out OS-level USB support.
+6. **FW-UPDATE-013 — Firmware and update analysis.** Capture update manifests and packages, determine signing and version rules, and inspect obtainable images for filesystem layout, init configuration, Ekioh integration, and dormant maintenance services. Do not claim an installation path without signature and rollback evidence.
+7. **UART-014 — Board-level console investigation.** If software-only surfaces do not expose an OS bridge, identify candidate low-voltage serial pads and pursue boot-log or console access using only existing zero-cost equipment. Avoid transmitting until voltage and pin roles are established.
+
+The preferred execution order is 1 through 7. Each experiment must preserve the distinction between application-runtime capability and operating-system execution.
 
 ```mermaid
 flowchart TD

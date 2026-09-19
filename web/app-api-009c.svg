@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111f"/>
+  <rect x="55" y="35" width="1170" height="650" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="5"/>
+  <text x="640" y="92" fill="#35f2a1" font-family="sans-serif" font-size="40" font-weight="bold" text-anchor="middle">APP-API-009C: CONNECTION LAB</text>
+  <text id="phase" x="640" y="132" fill="#a9bdd3" font-family="sans-serif" font-size="21" text-anchor="middle">Safe reflection running</text>
+  <text id="detail" x="640" y="166" fill="#ffffff" font-family="sans-serif" font-size="19" text-anchor="middle">Only this computer and high ports 39009 / 39010 are in scope.</text>
+
+  <rect id="button0" x="140" y="205" width="1000" height="78" rx="12" fill="#173451" stroke="#ffd166" stroke-width="6"/>
+  <text x="640" y="254" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">RUN OUTBOUND TCP TEST</text>
+  <rect id="button1" x="140" y="305" width="1000" height="78" rx="12" fill="#173451" stroke="#35506c" stroke-width="3"/>
+  <text x="640" y="354" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">START RECEIVER LISTENER :39010</text>
+  <rect id="button2" x="140" y="405" width="1000" height="78" rx="12" fill="#173451" stroke="#35506c" stroke-width="3"/>
+  <text x="640" y="454" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">STOP RECEIVER LISTENER</text>
+  <rect id="button3" x="140" y="505" width="1000" height="78" rx="12" fill="#173451" stroke="#35506c" stroke-width="3"/>
+  <text x="640" y="554" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">END SESSION AND CLEAN NETWORK</text>
+
+  <text id="selection" x="640" y="625" fill="#60c8ff" font-family="sans-serif" font-size="20" text-anchor="middle">Selected: RUN OUTBOUND TCP TEST</text>
+  <text x="640" y="656" fill="#a9bdd3" font-family="sans-serif" font-size="18" text-anchor="middle">UP / DOWN selects. OK runs once. End Session also attempts listener shutdown.</text>
+
+  <script type="text/ecmascript"><![CDATA[
+    var selected = 0;
+    var sequence = 0;
+    var outboundConnection = null;
+    var receiverServer = null;
+    var labels = ["RUN OUTBOUND TCP TEST", "START RECEIVER LISTENER :39010", "STOP RECEIVER LISTENER", "END SESSION AND CLEAN NETWORK"];
+
+    function report(name, value) {
+      try {
+        var xhr = new XMLHttpRequest();
+        if (name == "event") { sequence += 1; name = name + "." + sequence; }
+        xhr.open("GET", "http://191.32.31.251/app-api-009c/report?name=" + encodeURIComponent(name) + "&value=" + encodeURIComponent(String(value)), true);
+        xhr.send(null);
+      } catch (error) {}
+    }
+
+    function ownNames(value) {
+      var names = [];
+      var name;
+      try {
+        if (typeof Object.getOwnPropertyNames == "function") { return Object.getOwnPropertyNames(value); }
+        for (name in value) { names[names.length] = name; }
+      } catch (error) {}
+      return names;
+    }
+
+    function reflect(name, value) {
+      var names;
+      var prototype;
+      var index;
+      report(name + ".type", typeof value);
+      if (typeof value == "function") {
+        report(name + ".length", value.length);
+        try { report(name + ".string", String(value).substring(0, 240)); } catch (error) {}
+      }
+      try {
+        names = ownNames(value);
+        report(name + ".properties", names.join(","));
+      } catch (error2) { report(name + ".properties.error", String(error2)); }
+      try {
+        prototype = value && value.prototype ? value.prototype : Object.getPrototypeOf(value);
+        names = ownNames(prototype);
+        report(name + ".prototype.properties", names.join(","));
+        for (index = 0; index < names.length && index < 80; index += 1) {
+          try { report(name + ".prototype." + names[index], typeof prototype[names[index]]); }
+          catch (propertyError) { report(name + ".prototype." + names[index], "error"); }
+        }
+      } catch (error3) { report(name + ".prototype.error", String(error3)); }
+    }
+
+    function setDetail(text) {
+      try { document.getElementById("detail").firstChild.data = text; } catch (error) {}
+    }
+
+    function bindEvents(target, prefix) {
+      var events = ["connect", "connected", "open", "connection", "data", "message", "read", "close", "error"];
+      var index;
+      if (!target || typeof target.addEventListener != "function") { report(prefix + ".events", "addEventListener-unavailable"); return; }
+      for (index = 0; index < events.length; index += 1) {
+        (function(eventName) {
+          try {
+            target.addEventListener(eventName, function(event) {
+              report("event", prefix + ":" + eventName);
+              try { if (event && typeof event.data != "undefined") { report(prefix + ".eventData", String(event.data).substring(0, 240)); } } catch (ignore) {}
+              if (prefix == "outbound" && (eventName == "connect" || eventName == "connected" || eventName == "open")) { sendProbe(); }
+            }, false);
+          } catch (error) { report(prefix + ".eventBind." + eventName, "error:" + error); }
+        })(events[index]);
+      }
+    }
+
+    function invokeConnect(connection) {
+      var method;
+      if (!connection) { return; }
+      try {
+        method = connection.connect;
+        if (typeof method == "function") {
+          report("outbound.connect.length", method.length);
+          if (method.length <= 1) { method.call(connection, "tcp://191.32.31.251:39009"); }
+          else { method.call(connection, "191.32.31.251", 39009); }
+          report("outbound.connect", "invoked");
+        }
+      } catch (error) { report("outbound.connect", "error:" + error); }
+    }
+
+    function sendProbe() {
+      var payload = "MERO-APP-API-009C\n";
+      var methods = ["send", "write", "sendData"];
+      var index;
+      if (!outboundConnection) { return; }
+      for (index = 0; index < methods.length; index += 1) {
+        try {
+          if (typeof outboundConnection[methods[index]] == "function") {
+            outboundConnection[methods[index]](payload);
+            report("outbound.send", methods[index] + ":invoked");
+            return;
+          }
+        } catch (error) { report("outbound.send." + methods[index], "error:" + error); }
+      }
+      report("outbound.send", "no-supported-method");
+    }
+
+    function runOutbound() {
+      var arity;
+      report("event", "outbound-selected");
+      setDetail("Creating one bounded connection to this computer on port 39009...");
+      if (typeof createConnection != "function") { report("outbound.result", "createConnection-unavailable"); return; }
+      try {
+        arity = createConnection.length;
+        if (arity == 1) { outboundConnection = createConnection("tcp://191.32.31.251:39009"); }
+        else if (arity == 2) { outboundConnection = createConnection("191.32.31.251", 39009); }
+        else if (arity >= 3) { outboundConnection = createConnection("tcp", "191.32.31.251", 39009); }
+        else { outboundConnection = createConnection(); }
+        report("outbound.factory", "returned:" + typeof outboundConnection + ",arity:" + arity);
+        reflect("outbound.object", outboundConnection);
+        bindEvents(outboundConnection, "outbound");
+        invokeConnect(outboundConnection);
+        try { setTimeout(sendProbe, 1200); } catch (timerError) { report("outbound.timer", "error:" + timerError); }
+      } catch (error) { report("outbound.result", "error:" + error); setDetail("Outbound factory returned an error; evidence saved."); }
+    }
+
+    function startReceiverListener() {
+      var arity;
+      report("event", "listener-start-selected");
+      setDetail("Attempting one high-port receiver listener on 39010...");
+      if (typeof createConnectionServer != "function") { report("listener.result", "createConnectionServer-unavailable"); return; }
+      try {
+        arity = createConnectionServer.length;
+        if (arity == 1) { receiverServer = createConnectionServer(39010); }
+        else if (arity >= 2) { receiverServer = createConnectionServer("0.0.0.0", 39010); }
+        else { receiverServer = createConnectionServer(); }
+        report("listener.factory", "returned:" + typeof receiverServer + ",arity:" + arity);
+        reflect("listener.object", receiverServer);
+        bindEvents(receiverServer, "listener");
+        if (receiverServer && typeof receiverServer.listen == "function") {
+          report("listener.listen.length", receiverServer.listen.length);
+          if (receiverServer.listen.length <= 1) { receiverServer.listen(39010); }
+          else { receiverServer.listen("0.0.0.0", 39010); }
+          report("listener.listen", "invoked");
+        } else if (receiverServer && typeof receiverServer.start == "function") {
+          receiverServer.start(); report("listener.start", "invoked");
+        }
+      } catch (error) { report("listener.result", "error:" + error); setDetail("Listener factory returned an error; evidence saved."); }
+    }
+
+    function stopReceiverListener() {
+      var methods = ["close", "stop", "shutdown"];
+      var index;
+      report("event", "listener-stop-selected");
+      if (!receiverServer) { report("listener.stop", "no-server-object"); return; }
+      for (index = 0; index < methods.length; index += 1) {
+        try {
+          if (typeof receiverServer[methods[index]] == "function") {
+            receiverServer[methods[index]](); report("listener.stop", methods[index] + ":invoked"); receiverServer = null; return;
+          }
+        } catch (error) { report("listener.stop." + methods[index], "error:" + error); }
+      }
+      report("listener.stop", "no-supported-method");
+    }
+
+    function endSession() {
+      stopReceiverListener();
+      report("event", "end-session-selected");
+      setDetail("Host cleanup requested. Cold reboot only after the computer confirms cleanup.");
+      try { var xhr = new XMLHttpRequest(); xhr.open("GET", "http://191.32.31.251/app-api/end-session", true); xhr.send(null); }
+      catch (error) { report("endSession.error", String(error)); }
+    }
+
+    function updateSelection() {
+      var index;
+      for (index = 0; index < 4; index += 1) {
+        try {
+          document.getElementById("button" + index).setAttribute("stroke", selected == index ? "#ffd166" : "#35506c");
+          document.getElementById("button" + index).setAttribute("stroke-width", selected == index ? "6" : "3");
+        } catch (error) {}
+      }
+      try { document.getElementById("selection").firstChild.data = "Selected: " + labels[selected]; } catch (error2) {}
+    }
+
+    function keyHandler(event) {
+      var code = event.keyCode || event.which || 0;
+      report("event", "key:" + code);
+      if (code == 38 || code == 37) { selected = (selected + 3) % 4; updateSelection(); }
+      else if (code == 40 || code == 39) { selected = (selected + 1) % 4; updateSelection(); }
+      else if (code == 13) {
+        if (selected == 0) { runOutbound(); }
+        else if (selected == 1) { startReceiverListener(); }
+        else if (selected == 2) { stopReceiverListener(); }
+        else { endSession(); }
+      }
+    }
+
+    function initialReflection() {
+      var names = ["createConnection", "createConnectionServer", "createTimer", "Connection", "ConnectionServer", "Timer", "ConnectionEvent", "AsyncURLStatus"];
+      var index;
+      report("probe.version", "APP-API-009C-v1");
+      for (index = 0; index < names.length; index += 1) {
+        try { reflect(names[index], window[names[index]]); } catch (error) { report(names[index] + ".error", String(error)); }
+      }
+      try {
+        var mime = navigator.mimeTypes && navigator.mimeTypes["application/mozilla-npruntime-scriptable-plugin"];
+        reflect("scriptableMime", mime);
+        if (mime) { reflect("scriptablePlugin", mime.enabledPlugin); }
+      } catch (pluginError) { report("scriptablePlugin.error", String(pluginError)); }
+      report("probe.complete", "yes");
+      try { document.getElementById("phase").firstChild.data = "Reflection complete; select one bounded test"; } catch (error2) {}
+    }
+
+    try { document.addEventListener("keydown", keyHandler, false); } catch (error) {}
+    try { document.documentElement.focus(); } catch (error2) {}
+    updateSelection(); initialReflection();
+  ]]></script>
+</svg>

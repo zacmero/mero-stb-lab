@@ -53,7 +53,11 @@ flowchart TD
 - **[NET-PROVISION-004](docs/experiments/plan-net-provision-004.md): ACTIVE PHASE** — Local HTTP endpoint emulation to capture raw unencrypted GET/POST requests and explore network provisioning.
 - **[NET-CONFIG-005](docs/experiments/net-config-005.md): COMPLETED (RESULT: POSITIVE)** — Demonstrated foreground custom SVG application rendering, supplied ECMAScript execution, HTTP callbacks, and script-controlled navigation in the stock Ekioh runtime. Periodic timer/DOM updates remain unverified.
 - **[APP-RUNTIME-006](docs/experiments/app-runtime-006.md): COMPLETED (RESULT: POSITIVE)** — Demonstrated continuous foreground updates, recursive timers, DOM mutations, XHR/`getURL()` polling, refreshed SVG frames, and 35 remote-control key codes.
-- **[REMOTE-MAP-007](docs/experiments/remote-map-007.md): COMPLETED (RESULT: POSITIVE)** — Captured 40/40 named OEM remote-button mappings, published the canonical keymap, and added a Vivo Play application-exit candidate for hardware validation.
+- **[REMOTE-MAP-007](docs/experiments/remote-map-007.md): COMPLETED (RESULT: POSITIVE)** — Captured 40/40 named OEM remote-button mappings and published the canonical keymap.
+- **[APP-API-009](docs/experiments/app-api-009.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Demonstrated network/storage browser primitives and `ekiohPlatformInfo`; common native media, DVB, filesystem, and USB bridges were absent. APP-EXIT-008 was negative.
+- **[APP-API-009B + MEDIA-010](docs/experiments/app-api-009b-media-010.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Found raw Ekioh connection/server helpers and a scriptable-plugin MIME; SVG audio fetched the WAV but produced no audible playback. Receiver-authorized host cleanup worked.
+- **[APP-API-009C](docs/experiments/app-api-009c.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Real Ekioh client/server socket objects found; the default-state outbound attempt did not connect and the tested receiver listener remained LAN-filtered.
+- **[NETWORK-SERVICE-011](docs/experiments/network-service-011.md): COMPLETED (RESULT: NO LAN-REACHABLE SERVICE IDENTIFIED)** — All TCP ports silently filtered; bounded UDP and passive probes identified no responding maintenance or discovery service.
 
 ---
 

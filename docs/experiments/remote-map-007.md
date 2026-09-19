@@ -72,10 +72,8 @@ The corrected mapper refreshes `/remote-map/frame.svg` as an SVG image subresour
 
 ## Application exit behavior
 
-The runtime application reserves Vivo Play code `917778` (`0xE0112`) as an application-exit toggle. On its `keydown`, the application reports `app_exit`, calls `window.close()`, and uses `window.history.back()` as a delayed fallback. Other mapped keys remain available to applications.
-
-This exit path is **implemented but not yet demonstrated on hardware**. Do not classify it as working until a receiver test confirms return to native television UI.
+APP-EXIT-008 tested Vivo Play code `917778` (`0xE0112`) as an application-exit toggle and produced a **negative** result. Vivo Play reached JavaScript, but browser close and history operations did not return to native television. Remote and physical power controls also failed while the injected top-level document was active. Cold power removal remains the only demonstrated escape, and Vivo Play remains available as a normal mapped application button.
 
 ## Evidence boundary
 
-REMOTE-MAP-007 demonstrates named DOM key codes and a complete calibration transaction path. It does not demonstrate native operating-system access, native media playback, persistent receiver modification, or the untested application-exit behavior.
+REMOTE-MAP-007 demonstrates named DOM key codes and a complete calibration transaction path. It does not demonstrate native operating-system access, native media playback, persistent receiver modification, or an application-controlled exit path.
