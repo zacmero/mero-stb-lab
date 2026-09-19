@@ -185,16 +185,39 @@ CASES = [
         "expected_marker": "/marker/bussola_c14_absolute"
     },
     {
-        "case_id": "CASE-15-RELATIVE-JSON",
-        "description": "Candidate key: url with relative path in HTTP 200 JSON (no Location header)",
+        "case_id": "CASE-15-EXACT-HISTORICAL-D085",
+        "description": "Historical replay of commit d08504f /bussola/redirect 302 response with full JSON body and headers",
         "endpoint": "/bussola/redirect",
-        "provenance": "Relative JSON field test",
-        "bussola_status": 200,
+        "provenance": "Commit d08504f exact replay",
+        "http_version": "HTTP/1.0",
+        "server_header": "gvt-probe",
+        "bussola_status": 302,
         "bussola_headers": {
-            "Content-Type": "application/json; charset=utf-8"
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "/portal.svg",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
         },
-        "bussola_body": json.dumps({"status": "ok", "code": 0, "url": "/marker/bussola_relative_json"}),
-        "expected_marker": "/marker/bussola_relative_json"
+        "bussola_body": json.dumps({
+            "status": "ok",
+            "code": 0,
+            "url": "/portal.svg",
+            "redirect": "/portal.svg",
+            "redirectUrl": "/portal.svg",
+            "portalUrl": "/portal.svg",
+            "vodUrl": "/portal.svg",
+            "target": "/portal.svg",
+            "location": "/portal.svg",
+            "destination": "/portal.svg",
+            "result": {
+                "url": "/portal.svg",
+                "status": "ok"
+            },
+            "data": {
+                "url": "/portal.svg"
+            }
+        }, indent=2),
+        "expected_marker": "/portal.svg"
     }
 ]
 
@@ -419,7 +442,13 @@ def main():
             print(json.dumps(res, indent=2))
             return
 
-        if len(sys.argv) > 1 and sys.argv[1] == "--sequence-redirect-test":
+        if len(sys.argv) > 1 and sys.argv[1] in ("--historical-case-15", "--case-15"):
+            c15 = [c for c in CASES if c["case_id"] == "CASE-15-EXACT-HISTORICAL-D085"][0]
+            sequence = [
+                (c15, "Trigger /bussola/redirect by opening Vivo Play once."),
+            ]
+            print("MERO-STB-LAB: EXACT HISTORICAL REPLAY (CASE-15-EXACT-HISTORICAL-D085)")
+        elif len(sys.argv) > 1 and sys.argv[1] == "--sequence-redirect-test":
             c12 = [c for c in CASES if c["case_id"] == "CASE-12-HISTORICAL-PORTAL"][0]
             c13 = [c for c in CASES if c["case_id"] == "CASE-13-302-RELATIVE"][0]
             c14 = [c for c in CASES if c["case_id"] == "CASE-14-302-ABSOLUTE"][0]
@@ -437,7 +466,7 @@ def main():
             ]
             print("MERO-STB-LAB: INTERACTIVE THREE-CASE SESSION")
         else:
-            print("Usage: run_differential_campaign.py [--sequence-redirect-test | --interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
+            print("Usage: run_differential_campaign.py [--historical-case-15 | --sequence-redirect-test | --interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
             sys.exit(2)
 
         results = []

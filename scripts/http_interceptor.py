@@ -123,6 +123,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             "request_body_size": len(req_body),
             "request_body_sha256": req_hash,
             "request_body_snippet": req_body[:512].decode("latin1", errors="replace") if req_body else "",
+            "response_http_version": getattr(self, "protocol_version", "HTTP/1.1"),
             "response_status": resp_status,
             "response_headers": resp_headers,
             "response_body_size": len(resp_body),
@@ -144,7 +145,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             f"TIMESTAMP:    {now} [{proto}] [{source}] Case: {case_id}",
             f"CLIENT:       {client_ip}:{client_port} (Host: {host})",
             f"REQUEST:      {method} {raw_path}",
-            f"RESPONSE:     HTTP {resp_status} ({len(resp_body)} B, SHA256: {resp_hash[:16] if resp_hash else 'none'}...)"
+            f"RESPONSE:     {getattr(self, 'protocol_version', 'HTTP/1.1')} {resp_status} ({len(resp_body)} B, SHA256: {resp_hash[:16] if resp_hash else 'none'}...)"
         ]
         if req_body:
             lines.append(f"REQ_BODY ({len(req_body)} B): {req_body[:256].decode('latin1', errors='replace')}")
@@ -159,15 +160,30 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             pass
 
     def send_exact_response(self, status, headers_dict, body_bytes, case_id):
+        active_case = get_active_case()
+        proto_ver = active_case.get("http_version")
+        if proto_ver:
+            self.protocol_version = proto_ver
+        else:
+            self.protocol_version = "HTTP/1.1"
+
         self.send_response(status)
-        self.send_header("Server", "mero-harness/1.0")
+        server_val = active_case.get("server_header", "mero-harness/1.0")
+        sent_headers = {
+            "Server": server_val,
+            "Content-Length": str(len(body_bytes))
+        }
+        self.send_header("Server", server_val)
         self.send_header("Content-Length", str(len(body_bytes)))
-        self.send_header("Connection", "close")
+        if "Connection" not in headers_dict:
+            self.send_header("Connection", "close")
+            sent_headers["Connection"] = "close"
         for k, v in headers_dict.items():
             self.send_header(k, v)
+            sent_headers[k] = v
         self.end_headers()
         self.wfile.write(body_bytes)
-        return status, headers_dict, body_bytes
+        return status, sent_headers, body_bytes
 
     def handle_route(self, method):
         parsed = urllib.parse.urlsplit(self.path)
@@ -279,8 +295,8 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                 status = active_case.get("bussola_status", 200)
                 headers = dict(active_case.get("bussola_headers", {"Content-Type": "application/json; charset=utf-8"}))
                 body = active_case.get("bussola_body", '{"status":"ok","code":0}').encode("utf-8")
-                self.send_exact_response(status, headers, body, case_id)
-                self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+                status, sent_hdrs, body = self.send_exact_response(status, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, status, sent_hdrs, body, case_id)
                 return
 
         # -------------------------------------------------------------
