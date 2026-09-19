@@ -130,6 +130,25 @@ RESULT: HISTORICAL POSITIVE REPRODUCED. /portal.svg WAS FETCHED BY HARDWARE.
 
 ---
 
+## 3.1 Foreground Application Milestone (`CASE-24-LIVE-PORTAL-INJECTION`)
+
+On 2026-09-19, the receiver visibly rendered the custom `web/app.svg` application on the television with the message **MERO APP IS RUNNING**.
+
+Verified transaction chain:
+
+1. `02:00:21.206979Z`: receiver requested `/bussola/redirect`; the harness returned HTTP 302 to `/portal.svg`.
+2. `02:00:21.228002Z`: receiver fetched `/portal.svg` (2320 bytes, SHA-256 `94ac74c3960285690249d65eccb9631d9ca10747d41f266d6995519ff97f5db1`).
+3. `02:00:21.282658Z` and `02:00:21.283075Z`: the supplied XHR and SVG `getURL()` callbacks executed.
+4. `02:00:21.771490Z`: `window.location.href` caused the receiver to fetch `/app.svg` (1501 bytes, SHA-256 `8daaeaf5b132519a855379d319e378fbb8de29baca3b87376dcdd93f08d33004`).
+5. `02:00:22.393409Z`: the foreground application executed its `target=app_svg&method=loaded` callback.
+6. The user visually confirmed the custom application screen on the connected television.
+
+**Verdict:** foreground custom SVG rendering, ECMAScript execution, HTTP callbacks, and script-controlled document navigation are demonstrated on the stock receiver runtime.
+
+**Timer boundary:** the displayed clock remained stale. Periodic timer execution and continuous DOM text updates are not demonstrated and require a separate compatibility test.
+
+---
+
 ## 4. Reduction & Capability Battery (CASE-16 & CASE-17)
 
 ### 4.1 CASE-16: Empty-Body Response Reduction (`CASE-16-302-EMPTY-BODY`)
@@ -178,4 +197,3 @@ Prior to the execution of `CASE-16-302-EMPTY-BODY` (which demonstrated that the 
 | `CASE-18-HISTORICAL-NO-LOCATION` | Remove only the `Location` header | Preserved in harness |
 | `CASE-19-302-LOCATION-MINIMAL-BODY` | Keep HTTP 302 + `Location`, remove candidate JSON keys | Superseded by CASE-16 empty body |
 | `CASE-20` – `CASE-23` | Individual JSON candidate keys without `Location` | Preserved in harness |
-

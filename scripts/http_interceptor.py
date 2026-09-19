@@ -293,7 +293,19 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
-        # Route 1c: Render Probe SVG (/probe.svg)
+        # Route 1c: Foreground application probe (/app.svg)
+        # -------------------------------------------------------------
+        if path == "/app.svg":
+            app_file = os.path.join(REPO_DIR, "web", "app.svg")
+            with open(app_file, "rb") as f:
+                body = f.read()
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        # -------------------------------------------------------------
+        # Route 1d: Render Probe SVG (/probe.svg)
         # Tests SVG sub-resource resolution and script execution
         # -------------------------------------------------------------
         if path == "/probe.svg":

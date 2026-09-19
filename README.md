@@ -51,6 +51,7 @@ flowchart TD
 - **[USB-SCRIPT-002](docs/experiments/usb-script-002.md): COMPLETED (RESULT: NEGATIVE)** — Conventional U-Boot script discovery verified negative.
 - **[NET-PATH-003](docs/experiments/net-path-003.md): COMPLETED (RESULT: POSITIVE)** — Verified Layer 2/3 relay, captured boot DNS (`ucstb.vivoplay.com.br`), outbound HTTP endpoints (`186.215.183.217:80`, `191.32.31.251:80`), firmware version `1.320.1.0.5`, and error `05NW`.
 - **[NET-PROVISION-004](docs/experiments/plan-net-provision-004.md): ACTIVE PHASE** — Local HTTP endpoint emulation to capture raw unencrypted GET/POST requests and explore network provisioning.
+- **[NET-CONFIG-005](docs/experiments/net-config-005.md): COMPLETED (RESULT: POSITIVE)** — Demonstrated foreground custom SVG application rendering, supplied ECMAScript execution, HTTP callbacks, and script-controlled navigation in the stock Ekioh runtime. Periodic timer/DOM updates remain unverified.
 
 ---
 

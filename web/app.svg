@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111f" />
+  <rect x="80" y="70" width="1120" height="580" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="6" />
+  <text x="640" y="190" fill="#35f2a1" font-family="sans-serif" font-size="56" font-weight="bold" text-anchor="middle">MERO APP IS RUNNING</text>
+  <text x="640" y="285" fill="#ffffff" font-family="sans-serif" font-size="32" text-anchor="middle">Custom SVG + ECMAScript on the DSI74</text>
+  <text id="clock" x="640" y="405" fill="#60c8ff" font-family="sans-serif" font-size="52" text-anchor="middle">Starting...</text>
+  <text x="640" y="520" fill="#ffd166" font-family="sans-serif" font-size="28" text-anchor="middle">If you can read this, foreground application rendering works.</text>
+  <script type="text/ecmascript"><![CDATA[
+    function report(method) {
+      try {
+        getURL("http://191.32.31.251/report/script_exec?target=app_svg&method=" + method, function(){});
+      } catch(e) {}
+    }
+    function updateClock() {
+      try {
+        var node = document.getElementById("clock");
+        var now = new Date();
+        if (node && node.firstChild) {
+          node.firstChild.data = now.toString();
+        }
+      } catch(e) {}
+    }
+    report("loaded");
+    updateClock();
+    try { window.setInterval(updateClock, 1000); } catch(e) {}
+  ]]></script>
+</svg>
