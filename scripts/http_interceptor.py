@@ -351,7 +351,14 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             if host in ("191.32.31.251", "127.0.0.1", "192.168.1.97", ""):
                 status = active_case.get("appconfig_status", 200)
                 headers = dict(active_case.get("appconfig_headers", {"Content-Type": "application/json; charset=utf-8"}))
-                body = active_case.get("appconfig_body", '{"status":"ok","code":0}').encode("utf-8")
+                cfg_path = os.path.join(REPO_DIR, "web", "tv-config", "appConfigFit.json")
+                if "appconfig_body" in active_case and active_case["appconfig_body"]:
+                    body = active_case["appconfig_body"].encode("utf-8")
+                elif os.path.exists(cfg_path):
+                    with open(cfg_path, "rb") as f:
+                        body = f.read()
+                else:
+                    body = b'{"status":"ok","code":0}\n'
                 self.send_exact_response(status, headers, body, case_id)
                 self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
                 return
@@ -360,7 +367,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
         # Route 5: Backup IP Configuration (/tv-config/backupIpConfig.json)
         # Dispatched by curl/7.32.0 on STB
         # -------------------------------------------------------------
-        if path == "/tv-config/backupIpConfig.json" and method == "POST":
+        if path == "/tv-config/backupIpConfig.json":
             if host in ("191.32.31.251", "127.0.0.1", "192.168.1.97", ""):
                 body = b'{"status":"ok","code":0,"ack":true}\n'
                 headers = {"Content-Type": "application/json; charset=utf-8"}
@@ -372,7 +379,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
         # Route 6: Mirada Highlights XML (/mirada1-destaques/highlights_config.xml)
         # Host: 186.215.183.217
         # -------------------------------------------------------------
-        if path == "/mirada1-destaques/highlights_config.xml":
+        if path == "/mirada1-destaques/highlights_config.xml" or path.endswith("highlights_config.xml"):
             if host in ("186.215.183.217", "127.0.0.1", "192.168.1.97", ""):
                 body = (
                     '<?xml version="1.0" encoding="utf-8"?>\n'
@@ -381,7 +388,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                     '    <title>MERO-STB LAB</title>\n'
                     '    <channel>DIFF TEST</channel>\n'
                     '    <description>Mero STB Lab Diagnostic</description>\n'
-                    '    <url>/marker/highlight_url</url>\n'
+                    '    <url>/portal.svg</url>\n'
                     '  </highlight>\n'
                     '</highlights>\n'
                 ).encode("utf-8")
@@ -399,7 +406,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                 if "verifycode" in path:
                     body = json.dumps({"status": "success", "authenticated": True, "code": "GH05T"}).encode("utf-8")
                 else:
-                    body = json.dumps({"status": "success", "code": "GH05T", "user_code": "GH05T", "url": "/marker/fb_url"}).encode("utf-8")
+                    body = json.dumps({"status": "success", "code": "GH05T", "user_code": "GH05T", "url": "/portal.svg"}).encode("utf-8")
                 headers = {"Content-Type": "application/json; charset=utf-8"}
                 self.send_exact_response(200, headers, body, case_id)
                 self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
@@ -407,19 +414,31 @@ class DifferentialHandler(BaseHTTPRequestHandler):
 
         # -------------------------------------------------------------
         # Route 8: PayTV Telemetry Register (/paytv-stats-web/api/event/register)
-        # Host: 186.215.183.216
         # -------------------------------------------------------------
-        if path == "/paytv-stats-web/api/event/register" and method == "POST":
-            if host in ("186.215.183.216", "127.0.0.1", "192.168.1.97", ""):
-                body = b'{"status":"ok","code":0,"ack":true}\n'
-                headers = {"Content-Type": "application/json; charset=utf-8"}
-                self.send_exact_response(200, headers, body, case_id)
-                self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
-                return
+        if path.startswith("/paytv-stats") or "register" in path:
+            body = b'{"status":"ok","code":0,"ack":true,"registered":true}\n'
+            headers = {"Content-Type": "application/json; charset=utf-8"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
 
         # -------------------------------------------------------------
-        # Route 9: Explicit 404 for any unmapped route or host mismatch
+        # Route 9: Fallback for receiver probes & 404 for non-receiver
         # -------------------------------------------------------------
+        client_ip = self.client_address[0]
+        if classify_client(client_ip) == "RECEIVER_HW":
+            print(f"\n[*] Fallback 200 OK for RECEIVER_HW probe: {method} {host}{path}\n", flush=True)
+            fallback_body = json.dumps({
+                "status": "ok",
+                "code": 0,
+                "ack": True,
+                "url": "/portal.svg"
+            }).encode("utf-8")
+            headers = {"Content-Type": "application/json; charset=utf-8"}
+            self.send_exact_response(200, headers, fallback_body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, fallback_body, case_id)
+            return
+
         err_body = json.dumps({
             "error": "not_found",
             "host": host,

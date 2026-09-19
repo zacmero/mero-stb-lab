@@ -399,8 +399,50 @@ CASES = [
         },
         "bussola_body": json.dumps({"status": "ok", "code": 0, "vodUrl": "/portal.svg"}, indent=2),
         "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-24-LIVE-PORTAL-INJECTION",
+        "description": "Full foreground portal injection: 302 to /portal.svg with historical JSON + full appConfigFit.json",
+        "endpoint": "/bussola/redirect",
+        "provenance": "Foreground portal UI injection milestone",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "/portal.svg",
+            "Access-Control-Allow-Origin": "*",
+            "Connection": "close"
+        },
+        "bussola_body": json.dumps({
+            "status": "ok", "code": 0, "url": "/portal.svg",
+            "redirect": "/portal.svg", "redirectUrl": "/portal.svg",
+            "portalUrl": "/portal.svg", "vodUrl": "/portal.svg",
+            "target": "/portal.svg", "location": "/portal.svg",
+            "destination": "/portal.svg",
+            "result": {"url": "/portal.svg", "status": "ok"},
+            "data": {"url": "/portal.svg"}
+        }, indent=2),
+        "appconfig_status": 200,
+        "appconfig_headers": {"Content-Type": "application/json; charset=utf-8"},
+        "appconfig_body": json.dumps({
+            "status": "ok",
+            "code": 0,
+            "result": True,
+            "portalUrl": "http://191.32.31.251/portal.svg",
+            "portal_url": "http://191.32.31.251/portal.svg",
+            "portal": "http://191.32.31.251/portal.svg",
+            "portalSvg": "http://191.32.31.251/portal.svg",
+            "startUrl": "http://191.32.31.251/portal.svg",
+            "start_url": "http://191.32.31.251/portal.svg",
+            "mainUrl": "http://191.32.31.251/portal.svg",
+            "homeUrl": "http://191.32.31.251/portal.svg",
+            "url": "http://191.32.31.251/portal.svg",
+            "epgUrl": "http://191.32.31.251/portal.svg",
+            "vodUrl": "http://191.32.31.251/portal.svg",
+            "logUrl": "http://191.32.31.251/report/stb_log",
+            "version": "1.320.1.0.5"
+        }, indent=2),
+        "expected_marker": "/portal.svg"
     }
-
 ]
 
 def activate_case_on_harness(case_data):
@@ -706,9 +748,14 @@ def main():
                 (CASES[9], "Close and reopen Vivo Play."),
                 (CASES[1], "Close and reopen Vivo Play."),
             ]
-            print("MERO-STB-LAB: INTERACTIVE THREE-CASE SESSION")
+        elif len(sys.argv) > 1 and sys.argv[1] in ("--live-portal", "--portal-session"):
+            c24 = [c for c in CASES if c["case_id"] == "CASE-24-LIVE-PORTAL-INJECTION"][0]
+            sequence = [
+                (c24, "Open Vivo Play or test network connection on STB remote."),
+            ]
+            print("MERO-STB-LAB: FOREGROUND PORTAL INJECTION (CASE-24-LIVE-PORTAL-INJECTION)")
         else:
-            print("Usage: run_differential_campaign.py [--historical-case-15 | --sequence-reduction-core | --sequence-json-keys | --sequence-redirect-test | --interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
+            print("Usage: run_differential_campaign.py [--live-portal | --historical-case-15 | --sequence-reduction-core | --sequence-json-keys | --sequence-redirect-test | --interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
             sys.exit(2)
 
         results = []
