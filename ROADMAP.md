@@ -24,7 +24,7 @@
 | **NET-PROVISION-004** | HTTP endpoint emulation & request capture | **COMPLETED** | **POSITIVE:** Captured `GET /tv-config/appConfigFit.json` from `Ekioh v2.2.4.5-sagem` browser; unencrypted JSON parsed. |
 | **NET-CONFIG-005** | Mock configuration delivery & custom portal injection | **COMPLETED** | **POSITIVE:** Stock Ekioh rendered a foreground custom SVG application and executed supplied ECMAScript; timers remain unverified. |
 | **APP-RUNTIME-006** | Dynamic application and remote-input capability matrix | **COMPLETED** | **POSITIVE:** Continuous SVG/DOM updates, HTTP polling, refreshed frames, and 35 remote key codes demonstrated. |
-| **REMOTE-MAP-007** | Named remote-control calibration | **NEXT** | Map private Ekioh media/service codes one named button at a time. |
+| **REMOTE-MAP-007** | Named remote-control calibration | **COMPLETED** | 40/40 labels captured; canonical keymap published. Refreshed status frame and Vivo Play exit await hardware validation. |
 | **BOOT-KEY-001** | Front-panel & remote control boot straps | **QUEUED** | Zero-cost hardware exploration. |
 | **USB-HID-001** | USB PC keyboard bootloader interruption | **QUEUED** | Zero-cost console testing. |
 | **BOOT-CHAIN-001** | Hardware UART sniffing & SPI flash dumping | **SHELVED** | Requires external flasher / UART adapter (deferred per budget constraint). |

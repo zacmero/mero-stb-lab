@@ -10,6 +10,7 @@ import os
 import time
 import json
 import hashlib
+import html
 import urllib.parse
 import ssl
 import signal
@@ -55,6 +56,51 @@ CURRENT_CASE = {
     "appconfig_body": None,
 }
 CASE_LOCK = threading.Lock()
+REMOTE_MAP_LOCK = threading.Lock()
+REMOTE_MAP_RESULTS = os.path.join(CAPTURES_DIR, "remote-map-007.json")
+REMOTE_MAP_STATE = {
+    "status": "idle",
+    "active": False,
+    "label": None,
+    "code": None,
+    "hex": None,
+    "timestamp": None,
+}
+
+
+def get_remote_map_state():
+    with REMOTE_MAP_LOCK:
+        return dict(REMOTE_MAP_STATE)
+
+
+def set_remote_map_state(**changes):
+    with REMOTE_MAP_LOCK:
+        REMOTE_MAP_STATE.update(changes)
+        return dict(REMOTE_MAP_STATE)
+
+
+def save_remote_mapping(label, code, timestamp):
+    with REMOTE_MAP_LOCK:
+        results = []
+        if os.path.exists(REMOTE_MAP_RESULTS):
+            try:
+                with open(REMOTE_MAP_RESULTS, "r", encoding="utf-8") as f:
+                    results = json.load(f)
+            except Exception:
+                results = []
+        results = [entry for entry in results if entry.get("label") != label]
+        results.append({
+            "label": label,
+            "code": code,
+            "hex": f"0x{code:X}",
+            "timestamp": timestamp,
+            "source": "RECEIVER_HW",
+        })
+        temp_path = REMOTE_MAP_RESULTS + ".tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2)
+            f.write("\n")
+        os.replace(temp_path, REMOTE_MAP_RESULTS)
 
 def get_active_case():
     with CASE_LOCK:
@@ -231,6 +277,120 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
+        # REMOTE-MAP-007 synchronized terminal/receiver control
+        # -------------------------------------------------------------
+        if path == "/_remote_map/arm" and method == "POST":
+            if classify_client(self.client_address[0]) != "LOCAL_SELFTEST":
+                body = b'{"error":"local_control_only"}'
+                headers = {"Content-Type": "application/json"}
+                self.send_exact_response(403, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, 403, headers, body, case_id)
+                return
+            try:
+                label = json.loads(req_body.decode("utf-8"))["label"]
+                if not isinstance(label, str) or not label or len(label) > 64:
+                    raise ValueError("invalid label")
+                state = set_remote_map_state(
+                    status="armed", active=True, label=label, code=None, hex=None, timestamp=None
+                )
+                body = json.dumps(state).encode("utf-8")
+                status = 200
+            except Exception as e:
+                body = json.dumps({"error": str(e)}).encode("utf-8")
+                status = 400
+            headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        if path == "/_remote_map/activate" and method == "POST":
+            if classify_client(self.client_address[0]) != "LOCAL_SELFTEST":
+                body = b'{"error":"local_control_only"}'
+                headers = {"Content-Type": "application/json"}
+                self.send_exact_response(403, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, 403, headers, body, case_id)
+                return
+            state = set_remote_map_state(
+                status="waiting_for_page", active=True, label=None,
+                code=None, hex=None, timestamp=None
+            )
+            body = json.dumps(state).encode("utf-8")
+            headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/_remote_map/reset" and method == "POST":
+            if classify_client(self.client_address[0]) != "LOCAL_SELFTEST":
+                body = b'{"error":"local_control_only"}'
+                headers = {"Content-Type": "application/json"}
+                self.send_exact_response(403, headers, body, case_id)
+                self.record_transaction(method, self.path, req_body, 403, headers, body, case_id)
+                return
+            state = set_remote_map_state(
+                status="idle", active=False, label=None, code=None, hex=None, timestamp=None
+            )
+            body = json.dumps(state).encode("utf-8")
+            headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/remote-map/state":
+            state = get_remote_map_state()
+            if query.get("format") == ["text"]:
+                fields = (
+                    state.get("status") or "",
+                    state.get("label") or "",
+                    "" if state.get("code") is None else str(state["code"]),
+                    state.get("hex") or "",
+                )
+                body = "|".join(fields).encode("utf-8")
+                headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
+            else:
+                body = json.dumps(state, separators=(",", ":")).encode("utf-8")
+                headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/remote-map/ready":
+            source = classify_client(self.client_address[0])
+            state = get_remote_map_state()
+            if source == "RECEIVER_HW" and state["active"]:
+                state = set_remote_map_state(status="ready")
+                status = 200
+            else:
+                status = 409
+            body = b"ready" if status == 200 else b"not-ready"
+            headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        if path == "/remote-map/capture":
+            source = classify_client(self.client_address[0])
+            state = get_remote_map_state()
+            try:
+                code = int(query.get("code", [""])[0])
+            except ValueError:
+                code = -1
+            if source == "RECEIVER_HW" and state["status"] == "armed" and code >= 0:
+                timestamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z"
+                save_remote_mapping(state["label"], code, timestamp)
+                state = set_remote_map_state(
+                    status="captured", code=code, hex=f"0x{code:X}", timestamp=timestamp
+                )
+                status = 200
+            else:
+                status = 409
+            body = json.dumps(state, separators=(",", ":")).encode("utf-8")
+            headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        # -------------------------------------------------------------
         # Route 1: Marker Endpoints (/marker/<id>)
         # Critical evidence: If client requests this, a candidate was followed!
         # -------------------------------------------------------------
@@ -302,6 +462,54 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
             self.send_exact_response(200, headers, body, case_id)
             self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/remote-map.svg":
+            app_file = os.path.join(REPO_DIR, "web", "remote-map.svg")
+            with open(app_file, "rb") as f:
+                body = f.read()
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/remote-map/frame.svg":
+            state = get_remote_map_state()
+            status = state.get("status") or "idle"
+            label = state.get("label") or ""
+            if status == "armed":
+                prompt, result, detail = label, "PRESS EXACTLY ONE BUTTON", "ARMED"
+            elif status == "captured":
+                prompt = label
+                result = f"CAPTURED: {state.get('code')} / {state.get('hex')}"
+                detail = "RECORDED"
+            elif status == "waiting_for_page":
+                prompt, result, detail = "OPEN VIVO PLAY", "WAITING FOR RECEIVER", "NO BUTTON ARMED"
+            else:
+                prompt, result, detail = "CALIBRATION COMPLETE", "RESULTS SAVED", "IDLE"
+            body = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111f"/>
+  <rect x="90" y="75" width="1100" height="570" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="5"/>
+  <text x="640" y="145" fill="#35f2a1" font-family="sans-serif" font-size="42" font-weight="bold" text-anchor="middle">REMOTE-MAP-007</text>
+  <text x="640" y="195" fill="#a9bdd3" font-family="sans-serif" font-size="24" text-anchor="middle">Server-rendered calibration status</text>
+  <text x="640" y="290" fill="#ffffff" font-family="sans-serif" font-size="28" text-anchor="middle">PRESS THIS BUTTON:</text>
+  <text x="640" y="390" fill="#ffd166" font-family="sans-serif" font-size="72" font-weight="bold" text-anchor="middle">{html.escape(prompt)}</text>
+  <text x="640" y="485" fill="#60c8ff" font-family="sans-serif" font-size="34" text-anchor="middle">{html.escape(result)}</text>
+  <text x="640" y="565" fill="#a9bdd3" font-family="sans-serif" font-size="22" text-anchor="middle">{html.escape(detail)}</text>
+</svg>
+'''.encode("utf-8")
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/launch.svg":
+            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/app.svg"
+            body = b""
+            headers = {"Location": destination, "Cache-Control": "no-store"}
+            self.send_exact_response(302, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 302, headers, body, case_id)
             return
 
         # -------------------------------------------------------------

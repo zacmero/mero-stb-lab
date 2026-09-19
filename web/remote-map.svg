@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="root" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.2" baseProfile="tiny"
+     width="1280" height="720" viewBox="0 0 1280 720" focusable="true">
+  <rect width="1280" height="720" fill="#07111f" />
+  <rect x="90" y="75" width="1100" height="570" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="5" />
+  <text x="640" y="145" fill="#35f2a1" font-family="sans-serif" font-size="42" font-weight="bold" text-anchor="middle">REMOTE-MAP-007</text>
+  <text x="640" y="195" fill="#a9bdd3" font-family="sans-serif" font-size="24" text-anchor="middle">Interactive one-button calibration</text>
+
+  <text x="640" y="290" fill="#ffffff" font-family="sans-serif" font-size="28" text-anchor="middle">PRESS THIS BUTTON:</text>
+  <text id="prompt" x="640" y="390" fill="#ffd166" font-family="sans-serif" font-size="72" font-weight="bold" text-anchor="middle">WAITING FOR TERMINAL</text>
+  <text id="result" x="640" y="485" fill="#60c8ff" font-family="sans-serif" font-size="34" text-anchor="middle">No button armed</text>
+  <text id="status" x="640" y="565" fill="#a9bdd3" font-family="sans-serif" font-size="22" text-anchor="middle">Start scripts/run_remote_calibration.py on the PC</text>
+  <image id="stateFrame" x="0" y="0" width="1280" height="720" xlink:href="/remote-map/frame.svg?t=0" />
+
+  <script type="text/ecmascript"><![CDATA[
+    var armedLabel = "";
+    var captureSent = false;
+
+    function setText(id, value) {
+      var node = document.getElementById(id);
+      if (node && node.firstChild) node.firstChild.data = value;
+    }
+
+    function pollState() {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState != 4) return;
+          if (xhr.status == 200) {
+            try {
+              var frame = document.getElementById("stateFrame");
+              frame.setAttributeNS("http://www.w3.org/1999/xlink", "href", "/remote-map/frame.svg?t=" + new Date().getTime());
+              var fields = xhr.responseText.split("|");
+              var stateStatus = fields[0];
+              var stateLabel = fields[1];
+              if (stateStatus == "armed") {
+                armedLabel = stateLabel;
+                captureSent = false;
+                setText("prompt", stateLabel);
+                setText("result", "Press exactly one button");
+                setText("status", "ARMED");
+              } else if (stateStatus == "captured") {
+                armedLabel = "";
+                setText("prompt", stateLabel);
+                setText("result", "CAPTURED: " + fields[2] + " / " + fields[3]);
+                setText("status", "Recorded — waiting for next terminal prompt");
+              } else {
+                armedLabel = "";
+                setText("prompt", "WAITING FOR TERMINAL");
+                setText("result", "No button armed");
+              }
+            } catch(e) {}
+          }
+          window.setTimeout(pollState, 250);
+        };
+        xhr.open("GET", "http://191.32.31.251/remote-map/state?format=text&t=" + new Date().getTime(), true);
+        xhr.send();
+      } catch(e) {
+        window.setTimeout(pollState, 1000);
+      }
+    }
+
+    function captureKey(evt) {
+      if (!armedLabel || captureSent || evt.type != "keydown") return;
+      captureSent = true;
+      var code = evt.keyCode || evt.which || 0;
+      setText("result", "SENDING CODE " + code + "...");
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "http://191.32.31.251/remote-map/capture?code=" + code, true);
+        xhr.send();
+      } catch(e) {
+        captureSent = false;
+      }
+    }
+
+    try { document.addEventListener("keydown", captureKey, false); } catch(e) {}
+    try { document.documentElement.focus(); } catch(e) {}
+    try {
+      var ready = new XMLHttpRequest();
+      ready.open("GET", "http://191.32.31.251/remote-map/ready?t=" + new Date().getTime(), true);
+      ready.send();
+    } catch(e) {}
+    pollState();
+  ]]></script>
+</svg>

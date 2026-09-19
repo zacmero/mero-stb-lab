@@ -3,6 +3,7 @@
 set -euo pipefail
 
 IFACE="${IFACE:-enp5s0}"
+RECEIVER_IP="${RECEIVER_IP:-}"
 TARGET_MAC="68:15:90:6b:81:96"
 GATEWAY_IP="192.168.1.1"
 HTTP_PORT="8080"
@@ -155,6 +156,18 @@ mkdir -p "${CAPTURES_DIR}"
 
 echo "[*] Running read-only host-network preflight before ARP, iptables, or sysctl changes..."
 network_health_check "PREFLIGHT"
+
+# A DHCP reservation or immediately preceding passive discovery may provide a
+# candidate. It is never trusted by itself: the targeted probe below only
+# populates the neighbor table, and the exact MAC comparison remains mandatory.
+if [ -n "${RECEIVER_IP}" ]; then
+    if ! [[ "${RECEIVER_IP}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        echo "[-] RECEIVER_IP is not an IPv4 address: ${RECEIVER_IP}" >&2
+        exit 1
+    fi
+    echo "[*] Probing configured receiver candidate ${RECEIVER_IP} for exact MAC verification..."
+    ping -I "${IFACE}" -c 1 -W 2 "${RECEIVER_IP}" >/dev/null 2>&1 || true
+fi
 
 # 1. Check existing neighbor cache
 mapfile -t TARGET_IPS < <(

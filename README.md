@@ -52,7 +52,8 @@ flowchart TD
 - **[NET-PATH-003](docs/experiments/net-path-003.md): COMPLETED (RESULT: POSITIVE)** — Verified Layer 2/3 relay, captured boot DNS (`ucstb.vivoplay.com.br`), outbound HTTP endpoints (`186.215.183.217:80`, `191.32.31.251:80`), firmware version `1.320.1.0.5`, and error `05NW`.
 - **[NET-PROVISION-004](docs/experiments/plan-net-provision-004.md): ACTIVE PHASE** — Local HTTP endpoint emulation to capture raw unencrypted GET/POST requests and explore network provisioning.
 - **[NET-CONFIG-005](docs/experiments/net-config-005.md): COMPLETED (RESULT: POSITIVE)** — Demonstrated foreground custom SVG application rendering, supplied ECMAScript execution, HTTP callbacks, and script-controlled navigation in the stock Ekioh runtime. Periodic timer/DOM updates remain unverified.
-- **[APP-RUNTIME-006](docs/experiments/app-runtime-006.md): COMPLETED (RESULT: POSITIVE)** — Demonstrated continuous foreground updates, recursive timers, DOM mutations, XHR/`getURL()` polling, refreshed SVG frames, and 35 remote-control key codes. Private media/service labels remain to be calibrated.
+- **[APP-RUNTIME-006](docs/experiments/app-runtime-006.md): COMPLETED (RESULT: POSITIVE)** — Demonstrated continuous foreground updates, recursive timers, DOM mutations, XHR/`getURL()` polling, refreshed SVG frames, and 35 remote-control key codes.
+- **[REMOTE-MAP-007](docs/experiments/remote-map-007.md): COMPLETED (RESULT: POSITIVE)** — Captured 40/40 named OEM remote-button mappings, published the canonical keymap, and added a Vivo Play application-exit candidate for hardware validation.
 
 ---
 
