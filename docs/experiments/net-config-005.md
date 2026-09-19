@@ -120,21 +120,45 @@ RESULT: HISTORICAL POSITIVE REPRODUCED. /portal.svg WAS FETCHED BY HARDWARE.
 
 | Milestone Level | Demonstrated? | Backing & Constraints |
 | :--- | :--- | :--- |
-| **Response Delivered** | **YES** | Exact matching of Host, method, path, `case_id`, `run_id`, and response SHA-256 (`ed854de...`). |
-| **HTTP 302 Followed by Hardware** | **YES** | Hardware requested `GET /portal.svg` exactly 21.7ms after receiving the 302 response. |
-| **Target Marker Fetched** | **YES** | Served `web/portal.svg` (SVG Tiny 1.2, 1245 bytes) to `192.168.1.54:51349`. |
-| **Document Visibly Rendered** | **PENDING** | Network-level fetch confirmed; display verification depends on physical screen or top-level viewport capture. |
-| **Supplied JavaScript Executed** | **NO** | No callbacks to `/report/script_exec` observed. |
-| **Native / System Capability** | **NO** | Zero execution or shell exposure. |
+| **Response Delivered** | **YES** | Exact matching of Host, method, path, `case_id`, `run_id`, and response SHA-256 (`ed854de...` and `e3b0c44...`). |
+| **HTTP 302 Followed by Hardware** | **YES** | Hardware requested `GET /portal.svg` (+19.03ms) and `GET /probe.svg` (+21.11ms). |
+| **Response Body Reduction** | **YES** | A 0-byte payload (`Content-Length: 0`) produces the identical immediate redirect (+19ms). The 14-key JSON payload is 100% irrelevant. |
+| **SVG Sub-resource Resolution** | **YES** | Receiver rendered `/probe.svg` and fetched `<image xlink:href="/marker/probe_subresource.png">` at +45.06ms. |
+| **Supplied ECMAScript Executed** | **YES** | Receiver executed SVG embedded `<script>` tag: callbacks received via both `xhr` (+43.80ms) and `svg_getURL` (+44.50ms) from `192.168.1.54`. |
+| **Document Visibly Rendered** | **INVESTIGATING** | Layout engine active (sub-resources resolved); physical screen display behavior under evaluation. |
+| **Native / System Capability** | **NO** | Ekioh ECMAScript sandbox execution demonstrated; no host OS escape or shell exposure. |
 
 ---
 
-## 4. Post-Session Verification & Cleanup
+## 4. Reduction & Capability Battery (CASE-16 & CASE-17)
+
+### 4.1 CASE-16: Empty-Body Response Reduction (`CASE-16-302-EMPTY-BODY`)
+- **Objective:** Determine if the 14-key JSON body is parsed or required by the redirect consumer.
+- **Delivered Response:** `HTTP/1.1 302 Found`, `Location: /portal.svg`, `Content-Length: 0`, body: `b""` (0 bytes).
+- **Delivery Timestamp:** `2026-09-19T01:15:35.792078Z` from `192.168.1.54:51362`.
+- **Follow-up Request:** Exactly **19.03 milliseconds** later at `2026-09-19T01:15:35.811109Z`, `RECEIVER_HW` requested `GET /portal.svg`.
+- **Finding:** The STB runtime redirects purely based on standard HTTP 302 status and `Location` header. The JSON payload is completely unnecessary.
+
+### 4.2 CASE-17: Capability & Render Probe (`CASE-17-PORTAL-RENDER-PROBE`)
+- **Objective:** Test if the followed document enters the Ekioh SVG layout/rendering engine and executes embedded scripts.
+- **Trigger:** `GET /bussola/redirect` at `2026-09-19T01:21:35.917432Z`.
+- **Delivered 302:** `Location: /probe.svg`, `Content-Length: 0`.
+- **Transaction Cascade (Receiver IP: `192.168.1.54`):**
+  1. `+21.11 ms` (`01:21:35.938542Z`): `GET /probe.svg` (Ekioh fetched SVG document).
+  2. `+43.80 ms` (`01:21:35.982344Z`): `GET /report/script_exec?method=xhr` (Script execution via `XMLHttpRequest`!).
+  3. `+44.50 ms` (`01:21:35.983039Z`): `GET /report/script_exec?method=svg_getURL` (Script execution via SVG Tiny 1.2 `getURL()`!).
+  4. `+45.06 ms` (`01:21:35.983602Z`): `GET /marker/probe_subresource.png` (Layout engine fetched `<image>` subresource!).
+  5. `+16.27 s` (`01:21:52.188731Z`): `GET /tv-config/appConfigFit.json` (Downstream middleware config fetch).
+- **Verdict:** `SCRIPT_EXECUTION_DEMONSTRATED`.
+
+---
+
+## 5. Post-Session Verification & Cleanup
 
 - **Processes:** `rtk pgrep -af 'arp_spoofer.py|http_interceptor.py|tcpdump.*net-config-005'` confirmed zero active harness processes.
 - **Firewall Rules:** `iptables-save` confirmed `MNC005*` chains deleted; no redirect rules in `PREROUTING`.
 - **Sysctls:** `net.ipv4.conf.all.send_redirects = 1` and `net.ipv4.conf.enp5s0.send_redirects = 1` verified restored.
 - **Network Health:**
-  - Gateway reachable: `0.550 ms` avg round-trip time, 0% packet loss.
+  - Gateway reachable: `0.520 ms` avg round-trip time, 0% packet loss.
   - DNS resolution: `example.com` resolved.
-  - HTTPS egress: `https://example.com/` succeeded (code 0).
+  - HTTPS egress: `https://example.com/` succeeded (HTTP 200).
