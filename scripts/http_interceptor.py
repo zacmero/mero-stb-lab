@@ -107,8 +107,8 @@ class DifferentialHandler(BaseHTTPRequestHandler):
         source = classify_client(client_ip)
         host = self.headers.get("Host", "").split(":")[0].strip()
 
-        req_hash = hashlib.sha256(req_body).hexdigest() if req_body else None
-        resp_hash = hashlib.sha256(resp_body).hexdigest() if resp_body else None
+        req_hash = hashlib.sha256(req_body).hexdigest() if req_body is not None else None
+        resp_hash = hashlib.sha256(resp_body).hexdigest() if resp_body is not None else None
 
         record = {
             "timestamp": now,
