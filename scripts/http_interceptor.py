@@ -352,7 +352,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                 status = active_case.get("appconfig_status", 200)
                 headers = dict(active_case.get("appconfig_headers", {"Content-Type": "application/json; charset=utf-8"}))
                 cfg_path = os.path.join(REPO_DIR, "web", "tv-config", "appConfigFit.json")
-                if "appconfig_body" in active_case and active_case["appconfig_body"]:
+                if "appconfig_body" in active_case and active_case["appconfig_body"] and len(active_case["appconfig_body"]) > 30:
                     body = active_case["appconfig_body"].encode("utf-8")
                 elif os.path.exists(cfg_path):
                     with open(cfg_path, "rb") as f:
