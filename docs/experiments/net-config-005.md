@@ -160,5 +160,22 @@ RESULT: HISTORICAL POSITIVE REPRODUCED. /portal.svg WAS FETCHED BY HARDWARE.
 - **Sysctls:** `net.ipv4.conf.all.send_redirects = 1` and `net.ipv4.conf.enp5s0.send_redirects = 1` verified restored.
 - **Network Health:**
   - Gateway reachable: `0.520 ms` avg round-trip time, 0% packet loss.
-  - DNS resolution: `example.com` resolved.
   - HTTPS egress: `https://example.com/` succeeded (HTTP 200).
+
+---
+
+## 6. Reference: Systematic Reduction Sequence Plan
+
+Prior to the execution of `CASE-16-302-EMPTY-BODY` (which demonstrated that the entire JSON body was extraneous), the following one-variable matrix was defined and remains callable via `--sequence-reduction-core` and `--sequence-json-keys`:
+
+| Case | Single intended change from the known-positive control | Status / Result |
+| :--- | :--- | :--- |
+| `CASE-15-EXACT-HISTORICAL-D085` | None | **POSITIVE CONTROL** (reproduced at +21.7ms) |
+| `CASE-16-302-EMPTY-BODY` | Body reduced to 0 bytes (`Content-Length: 0`) | **POSITIVE** (followed at +19.0ms; body proved unnecessary) |
+| `CASE-17-PORTAL-RENDER-PROBE` | 302 to `/probe.svg` with scripts & subresource | **POSITIVE** (scripts executed at +44ms, image fetched at +45ms) |
+| `CASE-16-HISTORICAL-HTTP11` | `HTTP/1.0` → `HTTP/1.1` | Preserved in harness |
+| `CASE-17-HISTORICAL-SERVER-GENERIC` | `Server: gvt-probe` → generic harness server value | Preserved in harness |
+| `CASE-18-HISTORICAL-NO-LOCATION` | Remove only the `Location` header | Preserved in harness |
+| `CASE-19-302-LOCATION-MINIMAL-BODY` | Keep HTTP 302 + `Location`, remove candidate JSON keys | Superseded by CASE-16 empty body |
+| `CASE-20` – `CASE-23` | Individual JSON candidate keys without `Location` | Preserved in harness |
+
