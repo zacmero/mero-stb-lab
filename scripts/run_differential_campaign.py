@@ -218,6 +218,32 @@ CASES = [
             }
         }, indent=2),
         "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-16-302-EMPTY-BODY",
+        "description": "HTTP 302 redirect with Location: /portal.svg and completely empty body (0 bytes)",
+        "endpoint": "/bussola/redirect",
+        "provenance": "Response reduction: empty body test",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Location": "/portal.svg",
+            "Content-Length": "0"
+        },
+        "bussola_body": "",
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-17-PORTAL-RENDER-PROBE",
+        "description": "HTTP 302 redirect to /probe.svg with SVG image subresource and script execution triggers",
+        "endpoint": "/bussola/redirect",
+        "provenance": "Execution boundary: SVG rendering and script probe",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Location": "/probe.svg",
+            "Content-Length": "0"
+        },
+        "bussola_body": "",
+        "expected_marker": "/probe.svg"
     }
 ]
 
@@ -369,7 +395,10 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
     obs_start = time.time()
     marker_hit = False
     marker_type = None
+    subresource_hit = False
+    subresource_tx = None
     script_executed = False
+    script_tx = None
     marker_tx = None
 
     is_302_case = (case_data.get("bussola_status") == 302 or "302" in case_id or case_id.endswith("-302") or "-PORTAL" in case_id)
@@ -396,16 +425,27 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
                 print(f"  [*** EVIDENCE HIT ***] Marker {expected_marker} ({marker_type}) fetched by RECEIVER_HW from {tx.get('client')}!")
                 print(f"      Timestamp: {tx.get('timestamp')} | Run ID: {run_id}")
 
+            if (path == "/marker/probe_subresource.png" and tx.get("case_id") == case_id and
+                    tx.get("run_id") == run_id):
+                subresource_hit = True
+                subresource_tx = tx
+                print(f"  [*** CRITICAL HIT ***] SVG Sub-resource probe fetched by RECEIVER_HW from {tx.get('client')}!")
+                print(f"      Timestamp: {tx.get('timestamp')} | Run ID: {run_id}")
+
             if (path == "/report/script_exec" and tx.get("case_id") == case_id and
                     tx.get("run_id") == run_id):
                 script_executed = True
-                print(f"  [*** CRITICAL HIT ***] Script callback executed by RECEIVER_HW!")
+                script_tx = tx
+                print(f"  [*** CRITICAL HIT ***] Script callback executed by RECEIVER_HW from {tx.get('client')}!")
+                print(f"      Timestamp: {tx.get('timestamp')} | Run ID: {run_id}")
 
         time.sleep(0.5)
 
     # Determine verdict using strict evidence classification wording
     if script_executed:
         verdict = "SCRIPT_EXECUTION_DEMONSTRATED"
+    elif subresource_hit:
+        verdict = "SVG_RENDER_SUBRESOURCE_FETCHED"
     elif marker_hit:
         verdict = "302 delivered; marker fetched" if is_302_case else "JSON delivered; marker fetched"
     elif expected_marker is None:
@@ -424,10 +464,13 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
         "marker_expected": expected_marker,
         "marker_hit": marker_hit,
         "marker_type": marker_type,
+        "subresource_hit": subresource_hit,
         "script_executed": script_executed,
         "verdict": verdict,
         "tx_details": delivered_tx,
-        "marker_details": marker_tx
+        "marker_details": marker_tx,
+        "subresource_details": subresource_tx,
+        "script_details": script_tx
     }
     return result
 
@@ -450,7 +493,15 @@ def main():
             print(json.dumps(res, indent=2))
             return
 
-        if len(sys.argv) > 1 and sys.argv[1] in ("--historical-case-15", "--case-15"):
+        if len(sys.argv) > 1 and sys.argv[1] == "--reduction-battery":
+            c16 = [c for c in CASES if c["case_id"] == "CASE-16-302-EMPTY-BODY"][0]
+            c17 = [c for c in CASES if c["case_id"] == "CASE-17-PORTAL-RENDER-PROBE"][0]
+            sequence = [
+                (c16, "Open Vivo Play once to test CASE-16-302-EMPTY-BODY."),
+                (c17, "Close and reopen Vivo Play to test CASE-17-PORTAL-RENDER-PROBE."),
+            ]
+            print("MERO-STB-LAB: REDUCTION & CAPABILITY BATTERY (CASE-16, CASE-17)")
+        elif len(sys.argv) > 1 and sys.argv[1] in ("--historical-case-15", "--case-15"):
             c15 = [c for c in CASES if c["case_id"] == "CASE-15-EXACT-HISTORICAL-D085"][0]
             sequence = [
                 (c15, "Trigger /bussola/redirect by opening Vivo Play once."),

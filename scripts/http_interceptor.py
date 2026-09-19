@@ -227,22 +227,29 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             src = classify_client(client_ip)
             print(f"\n[*** EVIDENCE HIT ***] MARKER FETCHED: {marker_name} by {client_ip} ({src}) in Case {case_id}!\n", flush=True)
             
-            # Serve valid SVG Tiny with embedded telemetry script test
-            body = (
-                '<?xml version="1.0" encoding="UTF-8"?>\n'
-                '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720">\n'
-                '  <rect width="1280" height="720" fill="#050811" />\n'
-                f'  <text x="640" y="360" fill="#00ffcc" font-family="sans-serif" font-size="36" text-anchor="middle">MARKER HIT: {marker_name}</text>\n'
-                '  <script type="text/ecmascript"><![CDATA[\n'
-                '    try {\n'
-                '      var xhr = new XMLHttpRequest();\n'
-                f'      xhr.open("GET", "/report/script_exec?marker={marker_name}&run=" + (20+22), true);\n'
-                '      xhr.send();\n'
-                '    } catch(e) {}\n'
-                '  ]]></script>\n'
-                '</svg>\n'
-            ).encode("utf-8")
-            headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
+            if marker_name.endswith(".png"):
+                body = (
+                    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+                    b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x00\x00"
+                    b"\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82"
+                )
+                headers = {"Content-Type": "image/png"}
+            else:
+                body = (
+                    '<?xml version="1.0" encoding="UTF-8"?>\n'
+                    '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720">\n'
+                    '  <rect width="1280" height="720" fill="#050811" />\n'
+                    f'  <text x="640" y="360" fill="#00ffcc" font-family="sans-serif" font-size="36" text-anchor="middle">MARKER HIT: {marker_name}</text>\n'
+                    '  <script type="text/ecmascript"><![CDATA[\n'
+                    '    try {\n'
+                    '      var xhr = new XMLHttpRequest();\n'
+                    f'      xhr.open("GET", "/report/script_exec?marker={marker_name}&run=" + (20+22), true);\n'
+                    '      xhr.send();\n'
+                    '    } catch(e) {}\n'
+                    '  ]]></script>\n'
+                    '</svg>\n'
+                ).encode("utf-8")
+                headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
             self.send_exact_response(200, headers, body, case_id)
             self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
             return
@@ -267,6 +274,37 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                     '  <text x="640" y="360" fill="#00ffcc" font-family="sans-serif" font-size="36" text-anchor="middle">PORTAL SVG DELIVERED</text>\n'
                     '</svg>\n'
                 ).encode("utf-8")
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        # -------------------------------------------------------------
+        # Route 1c: Render Probe SVG (/probe.svg)
+        # Tests SVG sub-resource resolution and script execution
+        # -------------------------------------------------------------
+        if path == "/probe.svg":
+            client_ip = self.client_address[0]
+            src = classify_client(client_ip)
+            print(f"\n[*** EVIDENCE HIT ***] /probe.svg FETCHED by {client_ip} ({src}) in Case {case_id}!\n", flush=True)
+            body = (
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.2" baseProfile="tiny" width="1280" height="720">\n'
+                '  <rect width="1280" height="720" fill="#050811" />\n'
+                '  <text x="640" y="300" fill="#00ffcc" font-family="sans-serif" font-size="36" text-anchor="middle">MERO-STB-LAB: RENDER PROBE</text>\n'
+                '  <image xlink:href="http://191.32.31.251/marker/probe_subresource.png" width="50" height="50" x="10" y="10" />\n'
+                '  <script type="text/ecmascript"><![CDATA[\n'
+                '    try {\n'
+                '      if (window.getURL) window.getURL("http://191.32.31.251/report/script_exec?method=getURL", function(){});\n'
+                '    } catch(e) {}\n'
+                '    try {\n'
+                '      var xhr = new XMLHttpRequest();\n'
+                '      xhr.open("GET", "http://191.32.31.251/report/script_exec?method=xhr", true);\n'
+                '      xhr.send();\n'
+                '    } catch(e) {}\n'
+                '  ]]></script>\n'
+                '</svg>\n'
+            ).encode("utf-8")
             headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
             self.send_exact_response(200, headers, body, case_id)
             self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
