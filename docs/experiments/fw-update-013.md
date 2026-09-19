@@ -68,6 +68,14 @@ RDAP and reverse DNS attribute both historical IP ranges to Telefônica Brasil:
 
 The Internet Archive index contains 413 successful archived URLs for `ucstb.vivoplay.com.br`. Filtering their paths for update-related terms found only `/service3.0/ConfigurationService.svc/GetInstanceSettings`. One archived response returned `StatusCode: 3`, `Content: null`, and no update URL. Archived authentication/configuration calls prove the host served Vivo Play APIs, not that it served receiver firmware.
 
+## SoC security lead
+
+The public repository `trojkowy/Glitching-STIH237-SOCs` is the only GitHub repository found by the `STiH237` identifier. Its author reports sentinel-guarded JTAG access, randomized clocks, encrypted secure boot with repeated signature verification, external-clock checks, and RAM scrambling.
+
+That repository does not demonstrate a successful bypass. Its script requires ChipWhisperer and FT4232H-class hardware and invokes an STiH205/207 target pack. Treat its security description as an external report about the SoC family, not verified evidence for this DSI74 board or firmware.
+
+The workstation exposes only one active Ethernet interface. A transparent two-port capture bridge is therefore not currently available without adding or reconfiguring network hardware. No bridge configuration was attempted.
+
 ## Safe continuation
 
 Continue without LAN interception:
