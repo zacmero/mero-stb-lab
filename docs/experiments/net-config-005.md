@@ -4,7 +4,7 @@
 - **Identifier:** `NET-CONFIG-005`
 - **Date:** 2026-09-18
 - **Target Hardware:** Sagemcom DSI74 V2 HD GVT (STMicroelectronics STiH237)
-- **Status:** **COMPLETED (Phase 1 Differential Run)**
+- **Status:** **COMPLETED (Interactive Three-Case Protocol)**
 - **Outcome:** **NO NEW CAPABILITY DEMONSTRATED**
 - **Operating Constraint:** $0 Budget / Software & Ethernet Only
 
@@ -13,112 +13,101 @@
 ## 1. Executive Summary
 
 ```text
-NET-CONFIG-005: Differential Endpoint & Navigation Campaign
+NET-CONFIG-005: Interactive Three-Case Protocol
 RESULT: NO NEW CAPABILITY DEMONSTRATED.
 
-1. HARNESS AUDIT & ISOLATION:
-   The HTTP/HTTPS interceptor was completely overhauled to enforce exact
-   Host + Method + Path routing, bounded body reads (64KB max, 2.0s timeout),
-   and SHA-256 body hashing. Transactions are segregated by hardware source:
-   RECEIVER_HW (MAC 68:15:90:6b:81:96) is strictly separated from LOCAL_SELFTEST.
+1. EXACT-TARGET ISOLATION:
+   The harness enforces strict single-target ARP redirection between the verified
+   receiver (192.168.1.54, 68:15:90:6b:81:96) and gateway (192.168.1.1, 14:ca:56:81:18:71).
+   All preflight and post-interception health checks on gateway, DNS, and HTTPS
+   passed with zero disruption to host networking.
 
-2. TLS HARDWARE CONSTRAINTS:
-   Analysis of raw PCAP frames confirms the receiver rejects self-signed certificates
-   with TLS Alert 48 (unknown_ca). This proves that the receiver did not trust the
-   presented certificate chain; it does not establish an immutable or operator-only CA store.
+2. CASE-00-BASELINE:
+   Delivered HTTP 200 JSON minimal payload {"status":"ok","code":0} to RECEIVER_HW.
+   Confirmed with matching case_id, run_id, and response SHA-256. Observed for 30.0s.
+   Verdict: DELIVERED.
 
-3. DISSECTION OF HISTORICAL "REDIRECTION":
-   Inspection of prior sessions revealed that requests for `/portal.svg` were
-   driven by an HTTP 302 Found response (`Location: /portal.svg`), NOT by client
-   parsing of JSON navigation keys. The client XHR sent `Accept: application/json`,
-   received raw SVG, failed JSON parsing, and rendered a connection error.
+3. CASE-09-BUSSOLA-ISOLATED-302:
+   Delivered HTTP 302 Found with Location: http://191.32.31.251/marker/bussola_c09_302.
+   Matched case_id, run_id, and response SHA-256. During the 30.0s observation window,
+   the receiver did NOT follow the redirect to /marker/bussola_c09_302.
+   Verdict: NEGATIVE. Classified strictly as HTTP redirect behavior, not JSON navigation.
 
-4. DIFFERENTIAL TEST CAMPAIGN:
-   An automated 12-case differential battery was deployed against `/bussola/redirect`
-   and `/tv-config/appConfigFit.json`. In passive autonomous execution without
-   remote-control trigger events, all 12 cases remained UNTESTED.
+4. CASE-01-BUSSOLA-URL:
+   Delivered HTTP 200 JSON candidate {"status":"ok","code":0,"url":"http://191.32.31.251/marker/bussola_c01_url"}
+   with strictly no Location header. Matched case_id, run_id, and response SHA-256.
+   During the 30.0s observation window, the receiver did NOT fetch /marker/bussola_c01_url.
+   Verdict: NEGATIVE.
 ```
 
 ---
 
-## 2. Differential Campaign Battery & Results
+## 2. Interactive Three-Case Results Table
 
-The campaign tests single candidate properties in HTTP 200 JSON responses without `Location` headers, comparing them against a repeatable baseline (`{"status":"ok","code":0}`).
-
-| Case ID | Target Endpoint | Provenance | Candidate Property Tested | Expected Marker | Actual Result |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **CASE-00-BASELINE** | `/bussola/redirect` | Control baseline | None (`{"status":"ok","code":0}`) | None | `UNTESTED` |
-| **CASE-01-BUSSOLA-URL** | `/bussola/redirect` | Guess (REST convention) | `{"url": "/marker/bussola_c01_url"}` | `/marker/bussola_c01_url` | `UNTESTED` |
-| **CASE-02-BUSSOLA-PORTALURL** | `/bussola/redirect` | Ekioh ecosystem artifact | `{"portalUrl": "/marker/bussola_c02_portalurl"}` | `/marker/bussola_c02_portalurl` | `UNTESTED` |
-| **CASE-03-BUSSOLA-REDIRECTURL** | `/bussola/redirect` | Guess (Mirada camelCase) | `{"redirectUrl": "/marker/bussola_c03_redirecturl"}` | `/marker/bussola_c03_redirecturl` | `UNTESTED` |
-| **CASE-04-BUSSOLA-TARGET** | `/bussola/redirect` | Guess (SVG/DOM target) | `{"target": "/marker/bussola_c04_target"}` | `/marker/bussola_c04_target` | `UNTESTED` |
-| **CASE-05-BUSSOLA-RESULT-URL** | `/bussola/redirect` | Mirada schema reference | `{"result": {"url": "/marker/bussola_c05_resulturl"}}` | `/marker/bussola_c05_resulturl` | `UNTESTED` |
-| **CASE-06-BUSSOLA-DATA-URL** | `/bussola/redirect` | Guess (JSON-RPC wrapper) | `{"data": {"url": "/marker/bussola_c06_dataurl"}}` | `/marker/bussola_c06_dataurl` | `UNTESTED` |
-| **CASE-07-BUSSOLA-ACTION-OPEN** | `/bussola/redirect` | Mirada middleware spec | `{"action": "open", "url": "/marker/bussola_c07_action"}` | `/marker/bussola_c07_action` | `UNTESTED` |
-| **CASE-08-BUSSOLA-VODURL** | `/bussola/redirect` | Query parameter (`type=vod`) | `{"vodUrl": "/marker/bussola_c08_vodurl"}` | `/marker/bussola_c08_vodurl` | `UNTESTED` |
-| **CASE-09-BUSSOLA-ISOLATED-302** | `/bussola/redirect` | HTTP standard redirect | HTTP 302 + `Location: /marker/bussola_c09_302` | `/marker/bussola_c09_302` | `UNTESTED` |
-| **CASE-10-APPCONFIG-PORTALURL** | `/tv-config/appConfigFit.json` | Sagemcom config artifact | `{"portalUrl": "/marker/cfg_c10_portalurl"}` | `/marker/cfg_c10_portalurl` | `UNTESTED` |
-| **CASE-11-APPCONFIG-STARTURL** | `/tv-config/appConfigFit.json` | Sagemcom firmware string | `{"startUrl": "/marker/cfg_c11_starturl"}` | `/marker/cfg_c11_starturl` | `UNTESTED` |
-
-*Note: Per testing protocol, cases where the receiver made zero requests during the evaluation window are strictly classified as `UNTESTED`, not negative.*
+| Case ID | Target Endpoint | Candidate Property Tested | Response Status & Headers | Expected Marker | Marker Hit | Verdict |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **CASE-00-BASELINE** | `/bussola/redirect` | Baseline (`{"status":"ok","code":0}`) | HTTP 200 (`application/json`) | None | False | **DELIVERED** |
+| **CASE-09-BUSSOLA-ISOLATED-302** | `/bussola/redirect` | HTTP 302 Redirect Baseline | HTTP 302 (`Location: .../bussola_c09_302`) | `/marker/bussola_c09_302` | False | **NEGATIVE** |
+| **CASE-01-BUSSOLA-URL** | `/bussola/redirect` | `{"url": ".../bussola_c01_url"}` | HTTP 200 (No Location header) | `/marker/bussola_c01_url` | False | **NEGATIVE** |
 
 ---
 
-## 3. Empirical Findings & Technical Evidence
+## 3. Verified Hardware Transactions (from `captures/differential_results.json`)
 
-### 3.1 Receiver Network Profile
-- **MAC Address:** `68:15:90:6b:81:96` (Sagemcom Broadband SAS)
-- **Active DHCP Lease:** `192.168.1.146` on `enp5s0`
-- **ICMP Latency:** 0.91 ms min / 2.78 ms avg / 0% packet loss
-- **Path MTU:** 1500 bytes unfragmented
-- **Inbound Attack Surface:** All 50 probed TCP ports filtered/dropped. Device does not run unsolicited listening services on the LAN interface.
+### Transaction 1: CASE-00-BASELINE
+- **Timestamp:** `2026-09-19T00:00:23.701541Z`
+- **Client:** `192.168.1.54:51318` (`RECEIVER_HW`)
+- **Request:** `GET /bussola/redirect?type=vod&user=035289282213&product=DSI74%20V2%20HD%20GVT&fw=RC1.12.12&sw=1.0.5 HTTP/1.1`
+- **Host:** `191.32.31.251`
+- **Case ID / Run ID:** `CASE-00-BASELINE` / `CASE-00-BASELINE-1789775953784902300`
+- **Delivered Status:** `HTTP 200 OK` (27 bytes)
+- **Response SHA-256:** `34ac3bd2dc2dece014471a2cd4a99cab0cc90dc97c856a69c5008b1f482d82ce`
+- **Observation:** Full 30.0s elapsed.
 
-### 3.2 TLS Cryptographic Enforcement
-- Extraction of TLS alert records from `captures/net-config-005.pcap` demonstrates hardware rejection:
-  ```text
-  Frame Timestamp: 1789769033.322180
-  Source: 192.168.1.146:56069 -> Destination: 191.32.31.251:443
-  Type: Alert (21)
-  Level: Fatal (2)
-  Description: Unknown CA (48)
-  ```
-- **Conclusion:** TLS alert `unknown_ca` proves that the presented certificate chain was not trusted. The available evidence does not establish whether the trust store is immutable, hardware-backed, or operator-only.
+### Transaction 2: CASE-09-BUSSOLA-ISOLATED-302
+- **Timestamp:** `2026-09-19T00:02:13.157205Z`
+- **Client:** `192.168.1.54:51321` (`RECEIVER_HW`)
+- **Request:** `GET /bussola/redirect?type=vod&user=035289282213&product=DSI74%20V2%20HD%20GVT&fw=RC1.12.12&sw=1.0.5 HTTP/1.1`
+- **Host:** `191.32.31.251`
+- **Case ID / Run ID:** `CASE-09-BUSSOLA-ISOLATED-302` / `CASE-09-BUSSOLA-ISOLATED-302-1789776075779905379`
+- **Delivered Status:** `HTTP 302 Found` (22 bytes, Location: `http://191.32.31.251/marker/bussola_c09_302`)
+- **Response SHA-256:** `1d5b09e807c8c9b7e8c620110533ee77483729c9ac1107898aeda548ef95540e`
+- **Observation:** Full 30.0s elapsed. Marker `/marker/bussola_c09_302` was not fetched.
 
-### 3.3 Root Cause of Previous "Connection Error"
-Captured XHR headers demonstrate that when entering interactive VOD ("Vivo Play"), the browser issues an asynchronous XMLHttpRequest expecting JSON:
-```http
-GET /bussola/redirect?type=vod&user=035289282213&product=DSI74%20V2%20HD%20GVT&fw=RC1.12.12&sw=1.0.5 HTTP/1.1
-User-Agent: Ekioh v2.2.4.5-sagem (Mar  2 2013) r10767
-Host: 191.32.31.251
-Connection: Keep-Alive
-Accept: application/json, text/plain, */*
-```
-When the server responded with an HTTP 302 pointing to `/portal.svg`, the client followed the redirect and received SVG XML markup. A subsequent JSON parsing failure is a hypothesis consistent with the observed request headers and error banner; no source or runtime trace currently establishes the exact `JSON.parse()` exception.
+### Transaction 3: CASE-01-BUSSOLA-URL
+- **Timestamp:** `2026-09-19T00:04:03.913212Z`
+- **Client:** `192.168.1.54:51325` (`RECEIVER_HW`)
+- **Request:** `GET /bussola/redirect?type=vod&user=035289282213&product=DSI74%20V2%20HD%20GVT&fw=RC1.12.12&sw=1.0.5 HTTP/1.1`
+- **Host:** `191.32.31.251`
+- **Case ID / Run ID:** `CASE-01-BUSSOLA-URL` / `CASE-01-BUSSOLA-URL-1789776186463060540`
+- **Delivered Status:** `HTTP 200 OK` (81 bytes, No Location header)
+- **Response SHA-256:** `e38a6e304263cf04be97fc37ae53af85bc98f27b2452009167abc0a75f111d94`
+- **Observation:** Full 30.0s elapsed. Marker `/marker/bussola_c01_url` was not fetched.
 
 ---
 
-## 4. Evidence Classification
+## 4. Evidence Classification & Boundaries
 
 | Milestone Level | Demonstrated? | Evidence Backing |
 | :--- | :--- | :--- |
-| **Response Delivered** | **YES** (Prior sessions) | `net-config-005.log` records HTTP 200 and 302 responses sent to receiver |
-| **Changed Application Behavior** | **YES** (Visual banner) | Receiver displays connection error on invalid JSON, XML text on highlights |
-| **Marker URL Fetched (via JSON field)** | **NO** | 0 receiver requests to `/marker/*` without HTTP 302 header |
-| **Marker URL Fetched (via HTTP 302)** | **YES** (Prior sessions) | Client followed 302 to `/portal.svg` via libcurl / XHR redirect |
-| **Document Visibly Rendered** | **NO** | Raw SVG/HTML never rendered in top-level viewport |
-| **Supplied JavaScript Executed** | **NO** | 0 callbacks received on `/report/script_exec` |
-| **Native / System Capability** | **NO** | 0 execution vectors exposed |
+| **Response Delivered** | **YES** | Exact matching of Host, method, path, case_id, run_id, and response body SHA-256 on all 3 transactions |
+| **Changed Application Behavior** | **YES** (UI banner) | Receiver clears live TV or displays connection error dialog |
+| **Marker URL Fetched (via JSON field)** | **NO** | 0 requests to `/marker/bussola_c01_url` |
+| **Marker URL Fetched (via HTTP 302)** | **NO** (in this run) | STB did not follow 302 to absolute URL `http://191.32.31.251/marker/bussola_c09_302` |
+| **Document Visibly Rendered** | **NO** | Zero DOM/SVG rendering achieved in top-level viewport |
+| **Supplied JavaScript Executed** | **NO** | Zero callbacks to `/report/script_exec` |
+| **Native / System Capability** | **NO** | Zero execution or shell exposure |
+
+### Evidence Constraints:
+- TLS alert `unknown_ca` (48) proves only that the presented certificate chain was not trusted by the receiver; it does not establish an immutable, hardware-backed, or operator-only trust store.
+- A client-side `JSON.parse()` exception remains a hypothesis explaining the error dialog; no runtime or application source traces confirm it directly.
 
 ---
 
-## 5. Smallest Reproducible Positive Case Found
+## 5. Post-Session Verification & Cleanup Confirmation
 
-**None.** At this stage, no JSON navigation field has demonstrably triggered an outbound HTTP fetch from the receiver.
-
----
-
-## 6. Single Justified Next Experiment
-
-**Manual Single-Case Differential Trigger via Remote Control:**
-Because the receiver only queries `/bussola/redirect` when the user actively presses "Vivo Play" or "Menu", autonomous passive waiting yields `UNTESTED`.
-The single justified next experiment is to lock the harness to **CASE-01-BUSSOLA-URL**, prompt the user for **one** press of "Vivo Play", and monitor `experiment_transactions.jsonl` for a 30-second window. If negative, advance one-by-one to CASE-02 through CASE-08 with a single button press per test.
+Following session completion:
+1. All run-owned processes (`arp_spoofer.py`, `http_interceptor.py`, `tcpdump`) terminated cleanly.
+2. Custom iptables chains (`MNC005*`) were flushed and unlinked; no redirect rules remain in `PREROUTING`.
+3. Sysctls restored: `net.ipv4.conf.all.send_redirects = 1`, `net.ipv4.conf.enp5s0.send_redirects = 1`.
+4. Gateway reachability (`192.168.1.1`), DNS (`example.com`), and HTTPS egress verified passing.

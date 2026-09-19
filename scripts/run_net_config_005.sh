@@ -130,7 +130,7 @@ resolve_exact_neighbor() {
         echo "[-] ${ip} did not answer the identity-validation ping." >&2
         exit 1
     fi
-    observed_mac="$(ip neigh show to "${ip}" dev "${IFACE}" | awk '$0 !~ /FAILED|INCOMPLETE/ {print tolower($5)}' | sort -u)"
+    observed_mac="$(ip neigh show to "${ip}" dev "${IFACE}" | awk '$0 !~ /FAILED|INCOMPLETE/ { for (i=1; i<NF; i++) { if ($i == "lladdr") print tolower($(i+1)) } }' | sort -u)"
     if [ "${observed_mac}" != "${expected_mac}" ]; then
         echo "[-] ${ip} did not resolve uniquely to expected MAC ${expected_mac}; observed: ${observed_mac:-none}" >&2
         exit 1
@@ -156,11 +156,37 @@ mkdir -p "${CAPTURES_DIR}"
 echo "[*] Running read-only host-network preflight before ARP, iptables, or sysctl changes..."
 network_health_check "PREFLIGHT"
 
+# 1. Check existing neighbor cache
 mapfile -t TARGET_IPS < <(
     ip neigh show dev "${IFACE}" |
-        awk -v mac="${TARGET_MAC}" 'tolower($5) == tolower(mac) && $0 !~ /FAILED|INCOMPLETE/ {print $1}' |
+        awk -v mac="${TARGET_MAC}" '$0 !~ /FAILED|INCOMPLETE/ { for (i=1; i<NF; i++) { if ($i == "lladdr" && tolower($(i+1)) == tolower(mac)) print $1 } }' |
         sort -u
 )
+
+# 2. If absent from neighbor cache, passively capture DHCP/ARP broadcasts for up to 120s
+if [ "${#TARGET_IPS[@]}" -eq 0 ]; then
+    echo "[*] Receiver identity not found in current neighbor table."
+    mapfile -t DISCOVERED_IPS < <(
+        python3 "${SCRIPT_DIR}/passive_receiver_discovery.py" "${IFACE}" "${TARGET_MAC}" 120
+    )
+    if [ "${#DISCOVERED_IPS[@]}" -eq 1 ]; then
+        CANDIDATE_IP="${DISCOVERED_IPS[0]}"
+        echo "[+] Exactly one candidate IP discovered from broadcast: ${CANDIDATE_IP}"
+        echo "[*] Validating candidate IP via targeted ping probe..."
+        ping -I "${IFACE}" -c 1 -W 2 "${CANDIDATE_IP}" >/dev/null 2>&1 || true
+        sleep 1
+        mapfile -t TARGET_IPS < <(
+            ip neigh show to "${CANDIDATE_IP}" dev "${IFACE}" |
+                awk -v mac="${TARGET_MAC}" '$0 !~ /FAILED|INCOMPLETE/ { for (i=1; i<NF; i++) { if ($i == "lladdr" && tolower($(i+1)) == tolower(mac)) print $1 } }' |
+                sort -u
+        )
+    elif [ "${#DISCOVERED_IPS[@]}" -gt 1 ]; then
+        echo "[-] Multiple candidate IPs discovered: ${DISCOVERED_IPS[*]}; identity is ambiguous." >&2
+        echo "[-] STOP: no ARP, iptables, or sysctl state was changed." >&2
+        exit 1
+    fi
+fi
+
 if [ "${#TARGET_IPS[@]}" -ne 1 ]; then
     echo "[-] Expected exactly one current receiver IP for ${TARGET_MAC}; found ${#TARGET_IPS[@]}." >&2
     echo "[-] STOP: no ARP, iptables, or sysctl state was changed." >&2
@@ -169,7 +195,7 @@ fi
 TARGET_IP="${TARGET_IPS[0]}"
 
 resolve_exact_neighbor "${TARGET_IP}" "${TARGET_MAC}"
-GATEWAY_MAC="$(ip neigh show to "${GATEWAY_IP}" dev "${IFACE}" | awk '$0 !~ /FAILED|INCOMPLETE/ {print tolower($5)}' | sort -u)"
+GATEWAY_MAC="$(ip neigh show to "${GATEWAY_IP}" dev "${IFACE}" | awk '$0 !~ /FAILED|INCOMPLETE/ { for (i=1; i<NF; i++) { if ($i == "lladdr") print tolower($(i+1)) } }' | sort -u)"
 if ! [[ "${GATEWAY_MAC}" =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]]; then
     echo "[-] Gateway ${GATEWAY_IP} did not resolve to one valid MAC; observed: ${GATEWAY_MAC:-none}" >&2
     exit 1
