@@ -74,6 +74,48 @@ The public repository `trojkowy/Glitching-STIH237-SOCs` is the only GitHub repos
 
 That repository does not demonstrate a successful bypass. Its script requires ChipWhisperer and FT4232H-class hardware and invokes an STiH205/207 target pack. Treat its security description as an external report about the SoC family, not verified evidence for this DSI74 board or firmware.
 
+## Public SH4 image-build evidence
+
+The public `liqinhuicn/openvision-development-platform` tree provides useful
+architecture references, but no image for this exact receiver has been found.
+
+Its Forever definitions establish these properties for their STiH205/Cardiff
+targets:
+
+- SuperH-4 Linux using the `2.6.32.71-stmicro-4g` kernel source line;
+- STMicro multimedia and FDMA firmware;
+- a bootable `uImage` kernel plus `root.img` NAND root filesystem;
+- UBI/UBIFS packaging with 128-KiB-class eraseblocks;
+- kernel on `mtd1`, root filesystem on `mtd2` for `forever_nanosmart`;
+- U-Boot environment stored within `mtd0` for that target;
+- `ubi.mtd=2`, `root=ubi0:rootfs`, and `rootfstype=ubifs` boot arguments.
+
+These are strong references for how Cardiff-family SH4 receivers can be
+assembled. They are **not** a DSI74 partition map, boot sequence, signing
+policy, or compatible firmware image.
+
+The tree also contains `sagemcom88`, but its board patch explicitly selects
+**STx7105**, not STiH205. Its NOR/JFFS2 layout must not be transferred to the
+DSI74 merely because both carry the Sagemcom name.
+
+The downloadable `OpenVisionE2/linux-firmwares` SH4 archive was checked
+offline:
+
+```text
+sha256  869b07c99b77a54449ed766bdcd6ea219d1860129fe801f2d92d5d515bff69f1
+size    306165 bytes
+format  ZIP
+```
+
+It contains peripheral firmware, not a bootloader, kernel, root filesystem or
+complete receiver upgrade. It is useful for ecosystem identification only.
+
+An authentic non-GVT Cardiff image could reveal kernel configuration,
+filesystem organization, init/service conventions and browser integration.
+It remains an **offline analysis specimen** and must not be flashed until the
+DSI74's exact SoC, flash geometry, partition map, recovery path and signature
+rules are independently verified.
+
 The workstation exposes only one active Ethernet interface. A transparent two-port capture bridge is therefore not currently available without adding or reconfiguring network hardware. No bridge configuration was attempted.
 
 ## Safe continuation
