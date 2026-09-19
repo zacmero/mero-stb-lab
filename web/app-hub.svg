@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111d"/>
+  <rect x="90" y="75" width="1100" height="570" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="4"/>
+  <text x="640" y="145" fill="#35f2a1" font-family="sans-serif" font-size="44" font-weight="bold" text-anchor="middle">MERO RUNTIME HUB</text>
+  <text id="status" x="640" y="250" fill="#ffd166" font-family="sans-serif" font-size="36" font-weight="bold" text-anchor="middle">CONNECTING</text>
+  <text id="detail" x="640" y="315" fill="#d8e5f2" font-family="sans-serif" font-size="24" text-anchor="middle">Waiting for versioned module manifest</text>
+  <text id="version" x="640" y="385" fill="#60c8ff" font-family="monospace" font-size="24" text-anchor="middle">Version: none</text>
+  <text id="polls" x="640" y="435" fill="#8da5bd" font-family="monospace" font-size="20" text-anchor="middle">Polls: 0 | Modules: 0</text>
+  <text x="640" y="560" fill="#a9bdd3" font-family="sans-serif" font-size="21" text-anchor="middle">Future lab modules load here without replacing this foreground document.</text>
+  <text x="640" y="605" fill="#ef6f6c" font-family="sans-serif" font-size="18" text-anchor="middle">Cleanup is controlled by the signed-in workstation manifest.</text>
+  <script type="application/ecmascript"><![CDATA[
+var LAB_HOST="191.32.31.251", currentVersion="", polls=0, modules=0, busy=false, stopped=false;
+function node(id){return document.getElementById(id);}
+function setText(id,value){try{node(id).firstChild.data=String(value);}catch(ignore){}}
+function report(name,value){var request,body;try{request=new XMLHttpRequest();request.open("POST","http://"+LAB_HOST+"/app-hub/report",true);request.setRequestHeader("Content-Type","application/x-www-form-urlencoded");body="name="+encodeURIComponent(name)+"&value="+encodeURIComponent(String(value));request.send(body);}catch(ignore){}}
+var hubApi={setStatus:function(value){setText("status",value);},setDetail:function(value){setText("detail",value);},report:report};
+function requestCleanup(){var request;if(stopped)return;stopped=true;setText("status","CLEANUP REQUESTED");report("hub.cleanup","manifest-requested");try{request=new XMLHttpRequest();request.open("GET","http://"+LAB_HOST+"/app-api/end-session",true);request.send(null);}catch(error){setText("detail","Cleanup failed: "+error);}}
+function loadModule(manifest){
+  var request;
+  busy=true;setText("status","LOADING MODULE");setText("detail",manifest.module);
+  try{
+    request=new XMLHttpRequest();
+    request.onreadystatechange=function(){
+      if(request.readyState==4){
+        if(request.status==200){
+          try{eval(request.responseText+"\n;meroHubModule(hubApi);");currentVersion=manifest.version;modules++;setText("version","Version: "+currentVersion);report("hub.module.loaded",currentVersion);}
+          catch(error){setText("status","MODULE ERROR");setText("detail",String(error));report("hub.module.error",error);}
+        }else{setText("status","MODULE FETCH FAILED");report("hub.module.http",request.status);}
+        busy=false;setText("polls","Polls: "+polls+" | Modules: "+modules);
+      }
+    };
+    request.open("GET","http://"+LAB_HOST+manifest.module+"?v="+encodeURIComponent(manifest.version),true);request.send(null);
+  }catch(error2){busy=false;setText("status","MODULE REQUEST ERROR");report("hub.module.request.error",error2);}
+}
+function poll(){
+  var request;if(stopped||busy)return;polls++;setText("polls","Polls: "+polls+" | Modules: "+modules);
+  try{
+    request=new XMLHttpRequest();
+    request.onreadystatechange=function(){if(request.readyState==4){if(request.status==200){try{var manifest=JSON.parse(request.responseText);report("hub.manifest.seen",manifest.version);if(manifest.cleanup){requestCleanup();return;}if(manifest.version!=currentVersion)loadModule(manifest);}catch(error){setText("status","MANIFEST ERROR");report("hub.manifest.error",error);}}else{setText("status","WAITING FOR HOST");}}};
+    request.open("GET","http://"+LAB_HOST+"/app-hub-manifest.json?t="+(new Date().getTime()),true);request.send(null);
+  }catch(error2){setText("status","POLL ERROR");report("hub.poll.error",error2);}
+}
+report("hub.version","APP-HUB-010-v1");poll();setInterval(poll,2000);
+  ]]></script>
+</svg>

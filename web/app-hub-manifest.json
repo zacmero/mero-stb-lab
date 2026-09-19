@@ -1,0 +1,6 @@
+{
+  "version": "hub-module-v2",
+  "module": "/app-hub-module.js",
+  "cleanup": false,
+  "poll_ms": 2000
+}

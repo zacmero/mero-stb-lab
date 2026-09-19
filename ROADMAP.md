@@ -33,7 +33,7 @@
 | **APP-API-009E** | Comprehensive runtime capability mapper | **COMPLETED, LIMITED** | Module activation negative; transport signatures inert; storage/XML/standard timer positive; concurrent reports stalled full inventory. |
 | **RUNTIME-MAP-009F** | Sequential capability mapper | **COMPLETED, POSITIVE** | Automatic 77-field run completed; native timer objects exposed; exact ARP validation replaced stale ping/neighbor identity. |
 | **RUNTIME-PROBE-009G** | Combined runtime behavior probe | **COMPLETED, POSITIVE** | Native timer ran and stopped; UTF-8 binary conversion, DOM events, JSON/storage, intervals, and heap readings verified automatically. |
-| **APP-HUB-010** | Persistent in-app experiment hub | **NEXT** | Load versioned test modules through the proven runtime so multiple future probes can run without one cold reboot per application. |
+| **APP-HUB-010** | Persistent in-app experiment hub | **COMPLETED, POSITIVE** | Manifest-driven v1 → v2 replacement, retained run counting, and automatic cleanup verified without replacing the foreground document. |
 | **MEDIA-010** | Local media pipeline probe | **COMPLETED, LIMITED** | SVG audio API invoked and WAV fetched; no audible playback. Standard HTML media playback APIs absent. |
 | **NETWORK-SERVICE-011** | Exact-device LAN service inventory | **COMPLETED** | All TCP ports silently filtered; UDP probes received no identifying response. |
 | **BOOT-KEY-001** | Front-panel & remote control boot straps | **QUEUED** | Zero-cost hardware exploration. |
