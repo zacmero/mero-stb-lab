@@ -232,6 +232,31 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
+        # Route 1b: Portal SVG (/portal.svg)
+        # Critical evidence for CASE-12-HISTORICAL-PORTAL
+        # -------------------------------------------------------------
+        if path == "/portal.svg":
+            client_ip = self.client_address[0]
+            src = classify_client(client_ip)
+            print(f"\n[*** EVIDENCE HIT ***] /portal.svg FETCHED by {client_ip} ({src}) in Case {case_id}!\n", flush=True)
+            portal_file = os.path.join(REPO_DIR, "web", "portal.svg")
+            if os.path.exists(portal_file):
+                with open(portal_file, "rb") as f:
+                    body = f.read()
+            else:
+                body = (
+                    '<?xml version="1.0" encoding="UTF-8"?>\n'
+                    '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720">\n'
+                    '  <rect width="1280" height="720" fill="#0b0f19" />\n'
+                    '  <text x="640" y="360" fill="#00ffcc" font-family="sans-serif" font-size="36" text-anchor="middle">PORTAL SVG DELIVERED</text>\n'
+                    '</svg>\n'
+                ).encode("utf-8")
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        # -------------------------------------------------------------
         # Route 2: Script Execution Callback (/report/script_exec)
         # Demonstrates actual JavaScript execution
         # -------------------------------------------------------------

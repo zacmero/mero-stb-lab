@@ -144,6 +144,57 @@ CASES = [
         "appconfig_headers": {"Content-Type": "application/json; charset=utf-8"},
         "appconfig_body": json.dumps({"status": "ok", "code": 0, "startUrl": "http://191.32.31.251/marker/cfg_c11_starturl"}),
         "expected_marker": "/marker/cfg_c11_starturl"
+    },
+    {
+        "case_id": "CASE-12-HISTORICAL-PORTAL",
+        "description": "Historical HTTP 302 redirect with Location: /portal.svg",
+        "endpoint": "/bussola/redirect",
+        "provenance": "Historical observation test",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "/portal.svg"
+        },
+        "bussola_body": json.dumps({"status": "redirect"}),
+        "expected_marker": "/portal.svg"
+    },
+    {
+        "case_id": "CASE-13-302-RELATIVE",
+        "description": "HTTP 302 redirect with relative Location: /marker/bussola_c13_relative",
+        "endpoint": "/bussola/redirect",
+        "provenance": "Relative HTTP 302 redirect test",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "/marker/bussola_c13_relative"
+        },
+        "bussola_body": json.dumps({"status": "redirect"}),
+        "expected_marker": "/marker/bussola_c13_relative"
+    },
+    {
+        "case_id": "CASE-14-302-ABSOLUTE",
+        "description": "HTTP 302 redirect with absolute Location: http://191.32.31.251/marker/bussola_c14_absolute",
+        "endpoint": "/bussola/redirect",
+        "provenance": "Absolute HTTP 302 redirect test",
+        "bussola_status": 302,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8",
+            "Location": "http://191.32.31.251/marker/bussola_c14_absolute"
+        },
+        "bussola_body": json.dumps({"status": "redirect"}),
+        "expected_marker": "/marker/bussola_c14_absolute"
+    },
+    {
+        "case_id": "CASE-15-RELATIVE-JSON",
+        "description": "Candidate key: url with relative path in HTTP 200 JSON (no Location header)",
+        "endpoint": "/bussola/redirect",
+        "provenance": "Relative JSON field test",
+        "bussola_status": 200,
+        "bussola_headers": {
+            "Content-Type": "application/json; charset=utf-8"
+        },
+        "bussola_body": json.dumps({"status": "ok", "code": 0, "url": "/marker/bussola_relative_json"}),
+        "expected_marker": "/marker/bussola_relative_json"
     }
 ]
 
@@ -296,7 +347,7 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
     script_executed = False
     marker_tx = None
 
-    is_302_case = (case_data.get("bussola_status") == 302 or case_id.endswith("-302"))
+    is_302_case = (case_data.get("bussola_status") == 302 or "302" in case_id or case_id.endswith("-302") or "-PORTAL" in case_id)
 
     while time.time() - obs_start < observe_timeout:
         txs, offset = read_new_transactions(offset)
@@ -321,15 +372,15 @@ def evaluate_case(case_data, wait_timeout=60, observe_timeout=30, prompt=None):
 
         time.sleep(0.5)
 
-    # Determine verdict
+    # Determine verdict using strict evidence classification wording
     if script_executed:
         verdict = "SCRIPT_EXECUTION_DEMONSTRATED"
     elif marker_hit:
-        verdict = f"MARKER_FETCHED_{marker_type}"
+        verdict = "302 delivered; marker fetched" if is_302_case else "JSON delivered; marker fetched"
     elif expected_marker is None:
         verdict = "DELIVERED"
     else:
-        verdict = "NEGATIVE (Response delivered, candidate NOT followed)"
+        verdict = "302 delivered; no marker request observed" if is_302_case else "JSON delivered; no marker request observed"
 
     print(f"[*] Evaluation completed: Verdict = {verdict}")
 
@@ -368,16 +419,27 @@ def main():
             print(json.dumps(res, indent=2))
             return
 
-        if len(sys.argv) > 1 and sys.argv[1] != "--interactive-three":
-            print("Usage: run_differential_campaign.py [--interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
+        if len(sys.argv) > 1 and sys.argv[1] == "--sequence-redirect-test":
+            c12 = [c for c in CASES if c["case_id"] == "CASE-12-HISTORICAL-PORTAL"][0]
+            c13 = [c for c in CASES if c["case_id"] == "CASE-13-302-RELATIVE"][0]
+            c14 = [c for c in CASES if c["case_id"] == "CASE-14-302-ABSOLUTE"][0]
+            sequence = [
+                (c12, "Trigger /bussola/redirect by opening Vivo Play."),
+                (c13, "Close and reopen Vivo Play."),
+                (c14, "Close and reopen Vivo Play."),
+            ]
+            print("MERO-STB-LAB: REDIRECT INVESTIGATION SEQUENCE (CASE-12, CASE-13, CASE-14)")
+        elif len(sys.argv) > 1 and sys.argv[1] == "--interactive-three":
+            sequence = [
+                (CASES[0], "Open Vivo Play once."),
+                (CASES[9], "Close and reopen Vivo Play."),
+                (CASES[1], "Close and reopen Vivo Play."),
+            ]
+            print("MERO-STB-LAB: INTERACTIVE THREE-CASE SESSION")
+        else:
+            print("Usage: run_differential_campaign.py [--sequence-redirect-test | --interactive-three | --single CASE_ID [WAIT [OBSERVE]]]", file=sys.stderr)
             sys.exit(2)
 
-        sequence = [
-            (CASES[0], "Open Vivo Play once."),
-            (CASES[9], "Close and reopen Vivo Play."),
-            (CASES[1], "Close and reopen Vivo Play."),
-        ]
-        print("MERO-STB-LAB: INTERACTIVE THREE-CASE SESSION")
         results = []
         for case_data, prompt in sequence:
             if not restore_baseline():
