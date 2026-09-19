@@ -147,6 +147,8 @@ Verified transaction chain:
 
 **Timer boundary:** the displayed clock remained stale. Periodic timer execution and continuous DOM text updates are not demonstrated and require a separate compatibility test.
 
+The subsequent [APP-RUNTIME-006](app-runtime-006.md) compatibility matrix resolved this boundary: recursive `setTimeout()`, `firstChild.data`, `textContent`, XHR/`getURL()` polling, refreshed image resources, and remote-control events are demonstrated. The original stale clock was therefore specific to that implementation, not a general absence of dynamic application support.
+
 ---
 
 ## 4. Reduction & Capability Battery (CASE-16 & CASE-17)

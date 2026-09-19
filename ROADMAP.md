@@ -23,6 +23,8 @@
 | **NET-PATH-003** | Bounded bidirectional ARP relay & packet capture | **COMPLETED** | **POSITIVE:** Interception verified. Discovered DNS queries for `ucstb.vivoplay.com.br`, TCP to `186.215.183.217:80` and `191.32.31.251:80/443`, firmware version `1.320.1.0.5`, error `05NW`. |
 | **NET-PROVISION-004** | HTTP endpoint emulation & request capture | **COMPLETED** | **POSITIVE:** Captured `GET /tv-config/appConfigFit.json` from `Ekioh v2.2.4.5-sagem` browser; unencrypted JSON parsed. |
 | **NET-CONFIG-005** | Mock configuration delivery & custom portal injection | **COMPLETED** | **POSITIVE:** Stock Ekioh rendered a foreground custom SVG application and executed supplied ECMAScript; timers remain unverified. |
+| **APP-RUNTIME-006** | Dynamic application and remote-input capability matrix | **COMPLETED** | **POSITIVE:** Continuous SVG/DOM updates, HTTP polling, refreshed frames, and 35 remote key codes demonstrated. |
+| **REMOTE-MAP-007** | Named remote-control calibration | **NEXT** | Map private Ekioh media/service codes one named button at a time. |
 | **BOOT-KEY-001** | Front-panel & remote control boot straps | **QUEUED** | Zero-cost hardware exploration. |
 | **USB-HID-001** | USB PC keyboard bootloader interruption | **QUEUED** | Zero-cost console testing. |
 | **BOOT-CHAIN-001** | Hardware UART sniffing & SPI flash dumping | **SHELVED** | Requires external flasher / UART adapter (deferred per budget constraint). |

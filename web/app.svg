@@ -1,28 +1,161 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
+<svg id="root" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720"
+     focusable="true">
   <rect width="1280" height="720" fill="#07111f" />
-  <rect x="80" y="70" width="1120" height="580" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="6" />
-  <text x="640" y="190" fill="#35f2a1" font-family="sans-serif" font-size="56" font-weight="bold" text-anchor="middle">MERO APP IS RUNNING</text>
-  <text x="640" y="285" fill="#ffffff" font-family="sans-serif" font-size="32" text-anchor="middle">Custom SVG + ECMAScript on the DSI74</text>
-  <text id="clock" x="640" y="405" fill="#60c8ff" font-family="sans-serif" font-size="52" text-anchor="middle">Starting...</text>
-  <text x="640" y="520" fill="#ffd166" font-family="sans-serif" font-size="28" text-anchor="middle">If you can read this, foreground application rendering works.</text>
+  <text x="640" y="55" fill="#35f2a1" font-family="sans-serif" font-size="34" font-weight="bold" text-anchor="middle">MERO RUNTIME LAB</text>
+  <text x="640" y="88" fill="#a9bdd3" font-family="sans-serif" font-size="18" text-anchor="middle">SVG Tiny 1.2 / ECMAScript capability matrix</text>
+
+  <g font-family="sans-serif" font-size="19">
+    <rect x="55" y="115" width="560" height="95" rx="12" fill="#10243d" stroke="#294d70" stroke-width="2" />
+    <text x="80" y="147" fill="#ffffff">1  SMIL native animation</text>
+    <circle cx="105" cy="180" r="15" fill="#ff5f56">
+      <animate attributeName="fill" values="#ff5f56;#35f2a1;#60c8ff;#ff5f56" dur="2s" repeatCount="indefinite" />
+      <animate attributeName="r" values="12;21;12" dur="1s" repeatCount="indefinite" />
+    </circle>
+    <text x="140" y="187" fill="#a9bdd3">Circle should pulse and change color</text>
+
+    <rect x="665" y="115" width="560" height="95" rx="12" fill="#10243d" stroke="#294d70" stroke-width="2" />
+    <text x="690" y="147" fill="#ffffff">2  Recursive setTimeout + attribute</text>
+    <rect id="timeoutBox" x="700" y="168" width="34" height="20" rx="5" fill="#ffd166" />
+    <text id="timeoutText" x="750" y="187" fill="#a9bdd3">Waiting...</text>
+
+    <rect x="55" y="230" width="560" height="95" rx="12" fill="#10243d" stroke="#294d70" stroke-width="2" />
+    <text x="80" y="262" fill="#ffffff">3  DOM text mutation methods</text>
+    <text id="firstChildText" x="80" y="292" fill="#a9bdd3">firstChild.data: waiting</text>
+    <text id="textContentText" x="80" y="317" fill="#a9bdd3">textContent: waiting</text>
+
+    <rect x="665" y="230" width="560" height="95" rx="12" fill="#10243d" stroke="#294d70" stroke-width="2" />
+    <text x="690" y="262" fill="#ffffff">4  XMLHttpRequest polling</text>
+    <text id="xhrText" x="690" y="300" fill="#a9bdd3">Waiting for /runtime/state...</text>
+
+    <rect x="55" y="345" width="560" height="95" rx="12" fill="#10243d" stroke="#294d70" stroke-width="2" />
+    <text x="80" y="377" fill="#ffffff">5  SVG getURL polling</text>
+    <text id="getUrlText" x="80" y="415" fill="#a9bdd3">Waiting for callback...</text>
+
+    <rect x="665" y="345" width="560" height="95" rx="12" fill="#10243d" stroke="#294d70" stroke-width="2" />
+    <text x="690" y="377" fill="#ffffff">6  Refreshed image subresource</text>
+    <image id="frameImage" x="690" y="390" width="180" height="36" xlink:href="/runtime/frame.svg?seq=0" />
+    <text x="890" y="415" fill="#a9bdd3">Color and number should change</text>
+
+    <rect x="55" y="460" width="1170" height="105" rx="12" fill="#10243d" stroke="#35f2a1" stroke-width="3" />
+    <text x="80" y="495" fill="#ffffff">7  Remote-control input</text>
+    <text id="keyText" x="80" y="535" fill="#ffd166">Press arrows, OK, Back, numbers, or colored buttons</text>
+
+    <rect x="55" y="590" width="1170" height="75" rx="12" fill="#0b1b2e" stroke="#294d70" stroke-width="2" />
+    <text id="summaryText" x="80" y="635" fill="#60c8ff">Runtime probes started. Network evidence is recorded independently.</text>
+  </g>
+
   <script type="text/ecmascript"><![CDATA[
-    function report(method) {
+    var tick = 0;
+    var reported = {};
+    var XLINK_NS = "http://www.w3.org/1999/xlink";
+
+    function report(method, detail) {
       try {
-        getURL("http://191.32.31.251/report/script_exec?target=app_svg&method=" + method, function(){});
+        var suffix = detail ? "&detail=" + encodeURIComponent(detail) : "";
+        getURL("http://191.32.31.251/report/script_exec?target=runtime_lab&method=" + method + suffix, function(){});
       } catch(e) {}
     }
-    function updateClock() {
+
+    function reportOnce(method, detail) {
+      if (!reported[method]) {
+        reported[method] = true;
+        report(method, detail);
+      }
+    }
+
+    function setFirstChild(id, value) {
+      var node = document.getElementById(id);
+      if (node && node.firstChild) {
+        node.firstChild.data = value;
+        return true;
+      }
+      return false;
+    }
+
+    function timeoutProbe() {
+      tick += 1;
       try {
-        var node = document.getElementById("clock");
-        var now = new Date();
-        if (node && node.firstChild) {
-          node.firstChild.data = now.toString();
+        var box = document.getElementById("timeoutBox");
+        box.setAttribute("x", String(700 + ((tick % 10) * 30)));
+        reportOnce("timeout_attribute", "tick=" + tick);
+      } catch(e) {
+        reportOnce("timeout_attribute_error", String(e));
+      }
+      try {
+        if (setFirstChild("timeoutText", "tick " + tick)) {
+          reportOnce("firstChild_data", "tick=" + tick);
         }
+      } catch(e) {
+        reportOnce("firstChild_data_error", String(e));
+      }
+      try {
+        document.getElementById("textContentText").textContent = "textContent: tick " + tick;
+        reportOnce("textContent", "tick=" + tick);
+      } catch(e) {
+        reportOnce("textContent_error", String(e));
+      }
+      try {
+        setFirstChild("firstChildText", "firstChild.data: tick " + tick);
       } catch(e) {}
+      try {
+        var image = document.getElementById("frameImage");
+        image.setAttributeNS(XLINK_NS, "href", "/runtime/frame.svg?seq=" + tick);
+        reportOnce("image_href_update", "tick=" + tick);
+      } catch(e) {
+        reportOnce("image_href_error", String(e));
+      }
+      window.setTimeout(timeoutProbe, 1000);
     }
-    report("loaded");
-    updateClock();
-    try { window.setInterval(updateClock, 1000); } catch(e) {}
+
+    function xhrProbe() {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState == 4) {
+            setFirstChild("xhrText", "XHR " + xhr.status + ": " + xhr.responseText);
+            reportOnce("xhr_poll", "status=" + xhr.status);
+            window.setTimeout(xhrProbe, 1500);
+          }
+        };
+        xhr.open("GET", "http://191.32.31.251/runtime/state?seq=" + tick, true);
+        xhr.send();
+      } catch(e) {
+        reportOnce("xhr_poll_error", String(e));
+      }
+    }
+
+    function getUrlProbe() {
+      try {
+        getURL("http://191.32.31.251/runtime/state?transport=getURL&seq=" + tick, function(data) {
+          setFirstChild("getUrlText", "getURL callback: " + String(data));
+          reportOnce("getURL_poll", "callback");
+          window.setTimeout(getUrlProbe, 2000);
+        });
+      } catch(e) {
+        reportOnce("getURL_poll_error", String(e));
+      }
+    }
+
+    function keyProbe(evt) {
+      try {
+        var code = evt.keyCode || evt.which || 0;
+        var detail = "type=" + evt.type + ",code=" + code;
+        setFirstChild("keyText", "REMOTE EVENT: " + detail);
+        report("key_event", detail);
+      } catch(e) {
+        reportOnce("key_event_error", String(e));
+      }
+    }
+
+    report("loaded", "runtime_lab");
+    try { document.addEventListener("keydown", keyProbe, false); } catch(e) { reportOnce("keydown_listener_error", String(e)); }
+    try { document.addEventListener("keyup", keyProbe, false); } catch(e) { reportOnce("keyup_listener_error", String(e)); }
+    try { document.addEventListener("keypress", keyProbe, false); } catch(e) { reportOnce("keypress_listener_error", String(e)); }
+    try { document.documentElement.focus(); } catch(e) {}
+    window.setTimeout(timeoutProbe, 500);
+    window.setTimeout(xhrProbe, 700);
+    window.setTimeout(getUrlProbe, 900);
   ]]></script>
 </svg>

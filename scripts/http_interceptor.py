@@ -305,7 +305,41 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         # -------------------------------------------------------------
-        # Route 1d: Render Probe SVG (/probe.svg)
+        # Route 1d: Runtime diagnostics data and refreshed SVG frame
+        # -------------------------------------------------------------
+        if path == "/runtime/state":
+            body = json.dumps({
+                "ok": True,
+                "seq": query.get("seq", ["0"])[0],
+                "transport": query.get("transport", ["xhr"])[0],
+                "server_ms": int(time.time() * 1000),
+            }, separators=(",", ":")).encode("utf-8")
+            headers = {"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/runtime/frame.svg":
+            try:
+                seq = int(query.get("seq", ["0"])[0])
+            except ValueError:
+                seq = 0
+            colors = ("#35f2a1", "#60c8ff", "#ffd166", "#ff6b81")
+            color = colors[seq % len(colors)]
+            body = (
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny" width="180" height="36">\n'
+                f'  <rect width="180" height="36" rx="6" fill="{color}" />\n'
+                f'  <text x="90" y="25" fill="#07111f" font-family="sans-serif" font-size="18" font-weight="bold" text-anchor="middle">FRAME {seq}</text>\n'
+                '</svg>\n'
+            ).encode("utf-8")
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        # -------------------------------------------------------------
+        # Route 1e: Render Probe SVG (/probe.svg)
         # Tests SVG sub-resource resolution and script execution
         # -------------------------------------------------------------
         if path == "/probe.svg":
