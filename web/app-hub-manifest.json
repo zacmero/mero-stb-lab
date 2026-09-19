@@ -1,5 +1,5 @@
 {
-  "version": "hub-module-v2",
+  "version": "usb-cap-012-v1",
   "module": "/app-hub-module.js",
   "cleanup": false,
   "poll_ms": 2000

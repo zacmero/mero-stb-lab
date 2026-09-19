@@ -1,0 +1,3 @@
+MERO-USB-CAP-012-7B3D9E21
+
+This inert marker identifies application-visible USB storage.
