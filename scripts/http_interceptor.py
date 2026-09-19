@@ -75,11 +75,13 @@ APP_API_009C_RESULTS = {}
 APP_API_009D_RESULTS = {}
 APP_API_009E_RESULTS = {}
 RUNTIME_MAP_009F_RESULTS = {}
+RUNTIME_PROBE_009G_RESULTS = {}
 APP_API_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009b-media-010.json")
 APP_API_009C_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009c.json")
 APP_API_009D_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009d.json")
 APP_API_009E_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009e.json")
 RUNTIME_MAP_009F_RESULTS_FILE = os.path.join(CAPTURES_DIR, "runtime-map-009f.json")
+RUNTIME_PROBE_009G_RESULTS_FILE = os.path.join(CAPTURES_DIR, "runtime-probe-009g.json")
 CONNECTION_PROBE_LOG = os.path.join(CAPTURES_DIR, "app-api-009e-connections.jsonl")
 CONNECTION_PROBE_PORT = 39009
 END_SESSION_FILE = os.environ.get("MERO_END_SESSION_FILE", "")
@@ -569,7 +571,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/launch.svg":
-            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/runtime-map-009f.svg"
+            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/runtime-probe-009g.svg"
             body = b""
             headers = {"Location": destination, "Cache-Control": "no-store"}
             self.send_exact_response(302, headers, body, case_id)
@@ -687,6 +689,34 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                         json.dump(RUNTIME_MAP_009F_RESULTS, f, indent=2, sort_keys=True)
                         f.write("\n")
                     os.replace(temp_path, RUNTIME_MAP_009F_RESULTS_FILE)
+            body = b"ok" if status == 200 else b"forbidden"
+            headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        if path == "/runtime-probe-009g.svg":
+            with open(os.path.join(REPO_DIR, "web", "runtime-probe-009g.svg"), "rb") as f:
+                body = f.read()
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/runtime-probe-009g/report":
+            source = classify_client(self.client_address[0])
+            form = urllib.parse.parse_qs(req_body.decode("utf-8", errors="replace")) if method == "POST" else query
+            name = form.get("name", [""])[0][:160]
+            value = form.get("value", [""])[0][:4000]
+            status = 200 if source == "RECEIVER_HW" and name else 403
+            if status == 200:
+                with APP_API_LOCK:
+                    RUNTIME_PROBE_009G_RESULTS[name] = value
+                    temp_path = RUNTIME_PROBE_009G_RESULTS_FILE + ".tmp"
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        json.dump(RUNTIME_PROBE_009G_RESULTS, f, indent=2, sort_keys=True)
+                        f.write("\n")
+                    os.replace(temp_path, RUNTIME_PROBE_009G_RESULTS_FILE)
             body = b"ok" if status == 200 else b"forbidden"
             headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
             self.send_exact_response(status, headers, body, case_id)

@@ -60,6 +60,7 @@ flowchart TD
 - **[APP-API-009D](docs/experiments/app-api-009d.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Confirmed cross-boot `localStorage`; socket activation and XHTML-in-SVG plugin instantiation remained unresolved.
 - **[APP-API-009E](docs/experiments/app-api-009e.md): COMPLETED (RESULT: POSITIVE, LIMITED)** — Mapped advertised module, Ekioh transport, DOM/XML/storage/timer surfaces; concurrent result flooding stalled the final inventory.
 - **[RUNTIME-MAP-009F](docs/experiments/runtime-map-009f.md): COMPLETED (RESULT: POSITIVE)** — Automatic sequential mapping completed; exposed native timer objects and corrected boot identity using exact ARP validation.
+- **[RUNTIME-PROBE-009G](docs/experiments/runtime-probe-009g.md): COMPLETED (RESULT: POSITIVE)** — Native timer lifecycle, UTF-8 binary round trip, DOM events, JSON/storage, intervals, and heap behavior verified in one automatic launch.
 - **[NETWORK-SERVICE-011](docs/experiments/network-service-011.md): COMPLETED (RESULT: NO LAN-REACHABLE SERVICE IDENTIFIED)** — All TCP ports silently filtered; bounded UDP and passive probes identified no responding maintenance or discovery service.
 
 ---

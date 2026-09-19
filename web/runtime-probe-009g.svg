@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111d"/>
+  <text x="640" y="76" fill="#35f2a1" font-family="sans-serif" font-size="42" font-weight="bold" text-anchor="middle">RUNTIME-PROBE-009G</text>
+  <text id="phase" x="640" y="124" fill="#ffd166" font-family="sans-serif" font-size="24" text-anchor="middle">Starting automatic multi-probe</text>
+  <text id="step1" x="170" y="210" fill="#a9bdd3" font-family="sans-serif" font-size="25">1. Native timer lifecycle and events</text>
+  <text id="step2" x="170" y="265" fill="#a9bdd3" font-family="sans-serif" font-size="25">2. String and binary signature matrix</text>
+  <text id="step3" x="170" y="320" fill="#a9bdd3" font-family="sans-serif" font-size="25">3. DOM event and XML mutation</text>
+  <text id="step4" x="170" y="375" fill="#a9bdd3" font-family="sans-serif" font-size="25">4. Standard interval and storage checks</text>
+  <text id="queueState" x="640" y="470" fill="#8da5bd" font-family="monospace" font-size="21" text-anchor="middle">Queue: 0 pending / 0 delivered</text>
+  <text id="result" x="640" y="535" fill="#35f2a1" font-family="sans-serif" font-size="28" font-weight="bold" text-anchor="middle">RUNNING</text>
+  <text x="640" y="650" fill="#ef6f6c" font-family="sans-serif" font-size="18" text-anchor="middle">No remote input required. Network cleanup runs after every result is delivered.</text>
+  <script type="application/ecmascript"><![CDATA[
+var LAB_HOST="191.32.31.251", pending=[], sending=false, delivered=0, sequence=0, timerHits={timer:0,timeout:0,tick:0};
+function node(id){return document.getElementById(id);}
+function setText(id,value){try{node(id).firstChild.data=String(value);}catch(ignore){}}
+function showQueue(){setText("queueState","Queue: "+pending.length+" pending / "+delivered+" delivered");}
+function addResult(name,value){pending[pending.length]={name:name,value:String(value)};showQueue();sendNext();}
+function sendNext(){var item,request,body;if(sending||pending.length==0)return;sending=true;item=pending[0];try{request=new XMLHttpRequest();request.onreadystatechange=function(){if(request.readyState==4){pending.shift();delivered++;sending=false;showQueue();sendNext();}};request.open("POST","http://"+LAB_HOST+"/runtime-probe-009g/report",true);request.setRequestHeader("Content-Type","application/x-www-form-urlencoded");body="name="+encodeURIComponent(item.name)+"&value="+encodeURIComponent(item.value);request.send(body);}catch(error){sending=false;setText("phase","Delivery error: "+error);}}
+function event(value){addResult("event."+(++sequence),value);}
+function simple(value){var kind=typeof value;if(value===null)return "null";if(kind=="function")return "function("+value.length+")";if(kind=="string"||kind=="number"||kind=="boolean"||kind=="undefined")return kind+":"+String(value).substring(0,300);return kind;}
+function names(value){var output=[],key;try{if(Object.getOwnPropertyNames)return Object.getOwnPropertyNames(value);}catch(ignore){}try{for(key in value)output[output.length]=key;}catch(ignore2){}return output;}
+function afterDrain(callback){if(pending.length==0&&!sending)callback();else setTimeout(function(){afterDrain(callback);},100);}
+function recordTimerState(prefix,timer){var fields=["delay","repeatInterval","running"],i;for(i=0;i<fields.length;i++){try{addResult(prefix+"."+fields[i],simple(timer[fields[i]]));}catch(error){addResult(prefix+"."+fields[i]+".error",error);}}try{addResult(prefix+".names",names(Object.getPrototypeOf(timer)).join("|"));}catch(error2){addResult(prefix+".names.error",error2);}}
+function timerListener(name){return function(evt){timerHits[name]++;addResult("nativeTimer.event."+name+"."+timerHits[name],"type="+evt.type+",errorCode="+simple(evt.errorCode)+",data="+simple(evt.data));};}
+function testNativeTimer(done){
+  var timer,eventNames=["timer","timeout","tick"],i,startResult;
+  setText("phase","1/4 Native timer lifecycle");event("native-timer-start");
+  try{
+    timer=createTimer(150,0);recordTimerState("nativeTimer.before",timer);
+    for(i=0;i<eventNames.length;i++){try{timer.addEventListener(eventNames[i],timerListener(eventNames[i]),false);addResult("nativeTimer.listener."+eventNames[i],"attached");}catch(listenerError){addResult("nativeTimer.listener."+eventNames[i]+".error",listenerError);}}
+    try{startResult=timer.start();addResult("nativeTimer.start.return",simple(startResult));}catch(startError){addResult("nativeTimer.start.error",startError);}
+    recordTimerState("nativeTimer.afterStart",timer);
+    setTimeout(function(){
+      recordTimerState("nativeTimer.after1200ms",timer);
+      addResult("nativeTimer.hits","timer="+timerHits.timer+",timeout="+timerHits.timeout+",tick="+timerHits.tick);
+      try{addResult("nativeTimer.stop.return",simple(timer.stop()));}catch(stopError){addResult("nativeTimer.stop.error",stopError);}
+      recordTimerState("nativeTimer.afterStop",timer);event("native-timer-complete");done();
+    },1200);
+  }catch(error){addResult("nativeTimer.error",error);event("native-timer-complete");done();}
+}
+function trySignature(prefix,callable,args){try{var result=callable.apply(window,args);addResult(prefix+".result",simple(result));addResult(prefix+".names",names(result).join("|"));return result;}catch(error){addResult(prefix+".error",error);return null;}}
+function testDataHelpers(done){
+  var variants=[["utf8",["MERO-009G","UTF-8"]],["zero",["MERO-009G",0]],["length",["MERO-009G",10]]],i,binary;
+  setText("phase","2/4 Data helper signatures");event("data-helpers-start");
+  addResult("data.stringToBinary.arity",typeof stringToBinary=="function"?stringToBinary.length:"absent");
+  addResult("data.binaryToString.arity",typeof binaryToString=="function"?binaryToString.length:"absent");
+  if(typeof stringToBinary=="function")for(i=0;i<variants.length;i++){binary=trySignature("data.stringToBinary."+variants[i][0],stringToBinary,variants[i][1]);if(binary!==null&&typeof binaryToString=="function"){trySignature("data.binaryToString."+variants[i][0],binaryToString,[binary,variants[i][1][1]]);}}
+  event("data-helpers-complete");done();
+}
+function testDomXml(done){
+  var customEvent,hit=0,parsed,child,serialized;
+  setText("phase","3/4 DOM event and XML mutation");event("dom-xml-start");
+  try{customEvent=document.createEvent("Event");customEvent.initEvent("mero009g",true,true);document.documentElement.addEventListener("mero009g",function(){hit++;},false);addResult("dom.dispatch.return",simple(document.documentElement.dispatchEvent(customEvent)));addResult("dom.dispatch.hits",hit);}catch(eventError){addResult("dom.dispatch.error",eventError);}
+  try{parsed=parseXML("<root/>",document);child=parsed.createElementNS("urn:mero:lab","probe");child.setAttribute("value","009g");parsed.documentElement.appendChild(child);addResult("xml.root",parsed.documentElement.nodeName);addResult("xml.child",parsed.documentElement.firstElementChild?parsed.documentElement.firstElementChild.nodeName:parsed.documentElement.firstChild.nodeName);if(typeof parsed.dumpTree=="function"){serialized=parsed.dumpTree();addResult("xml.dump",simple(serialized));}}catch(xmlError){addResult("xml.error",xmlError);}
+  event("dom-xml-complete");done();
+}
+function testStandardRuntime(done){
+  var ticks=0,intervalId,finished=false,beforeUsed=window.jsHeapUsed,marker="009g-"+(new Date().getTime());
+  function finish(){if(finished)return;finished=true;try{clearInterval(intervalId);}catch(ignore){}addResult("interval.ticks",ticks);addResult("heap.before",simple(beforeUsed));addResult("heap.after",simple(window.jsHeapUsed));event("standard-runtime-complete");done();}
+  setText("phase","4/4 Standard interval and storage");event("standard-runtime-start");
+  try{localStorage.setItem("mero_009g",marker);addResult("storage.local",localStorage.getItem("mero_009g"));sessionStorage.setItem("mero_009g",marker);addResult("storage.session",sessionStorage.getItem("mero_009g"));}catch(storageError){addResult("storage.error",storageError);}
+  try{var encoded=JSON.stringify({marker:marker,value:9});addResult("json.encoded",encoded);addResult("json.decoded",JSON.parse(encoded).marker);}catch(jsonError){addResult("json.error",jsonError);}
+  try{intervalId=setInterval(function(){ticks++;if(ticks>=3)finish();},80);setTimeout(finish,1500);}catch(intervalError){addResult("interval.error",intervalError);finish();}
+}
+function cleanup(){var request;addResult("automatic.result","complete");afterDrain(function(){setText("phase","COMPLETE");setText("result","COMPLETE - CLEANUP REQUESTED");try{request=new XMLHttpRequest();request.open("GET","http://"+LAB_HOST+"/app-api/end-session",true);request.send(null);}catch(error){setText("phase","Cleanup request failed: "+error);}});}
+function runAll(){testNativeTimer(function(){afterDrain(function(){testDataHelpers(function(){afterDrain(function(){testDomXml(function(){afterDrain(function(){testStandardRuntime(function(){afterDrain(cleanup);});});});});});});});}
+addResult("probe.version","RUNTIME-PROBE-009G-v1-auto");afterDrain(function(){setTimeout(runAll,300);});
+  ]]></script>
+</svg>
