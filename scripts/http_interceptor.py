@@ -72,9 +72,11 @@ REMOTE_MAP_STATE = {
 APP_API_LOCK = threading.Lock()
 APP_API_RESULTS = {}
 APP_API_009C_RESULTS = {}
+APP_API_009D_RESULTS = {}
 APP_API_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009b-media-010.json")
 APP_API_009C_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009c.json")
-CONNECTION_PROBE_LOG = os.path.join(CAPTURES_DIR, "app-api-009c-connections.jsonl")
+APP_API_009D_RESULTS_FILE = os.path.join(CAPTURES_DIR, "app-api-009d.json")
+CONNECTION_PROBE_LOG = os.path.join(CAPTURES_DIR, "app-api-009d-connections.jsonl")
 CONNECTION_PROBE_PORT = 39009
 END_SESSION_FILE = os.environ.get("MERO_END_SESSION_FILE", "")
 
@@ -189,7 +191,7 @@ class ConnectionProbeHandler(socketserver.BaseRequestHandler):
         }
         with open(CONNECTION_PROBE_LOG, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
-        print(f"[+] APP-API-009C raw connection from {record['client_ip']} ({source}), {len(data)} bytes.", flush=True)
+        print(f"[+] Application raw connection from {record['client_ip']} ({source}), {len(data)} bytes.", flush=True)
         if source == "RECEIVER_HW":
             try:
                 self.request.sendall(b"MERO-009C-REPLY\n")
@@ -563,7 +565,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/launch.svg":
-            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/app-api-009c.svg"
+            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/app-api-009d.svg"
             body = b""
             headers = {"Location": destination, "Cache-Control": "no-store"}
             self.send_exact_response(302, headers, body, case_id)
@@ -599,6 +601,33 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                         json.dump(APP_API_009C_RESULTS, f, indent=2, sort_keys=True)
                         f.write("\n")
                     os.replace(temp_path, APP_API_009C_RESULTS_FILE)
+            body = b"ok" if status == 200 else b"forbidden"
+            headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
+            self.send_exact_response(status, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
+            return
+
+        if path == "/app-api-009d.svg":
+            with open(os.path.join(REPO_DIR, "web", "app-api-009d.svg"), "rb") as f:
+                body = f.read()
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
+
+        if path == "/app-api-009d/report":
+            source = classify_client(self.client_address[0])
+            name = query.get("name", [""])[0][:120]
+            value = query.get("value", [""])[0][:1200]
+            status = 200 if source == "RECEIVER_HW" and name else 403
+            if status == 200:
+                with APP_API_LOCK:
+                    APP_API_009D_RESULTS[name] = value
+                    temp_path = APP_API_009D_RESULTS_FILE + ".tmp"
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        json.dump(APP_API_009D_RESULTS, f, indent=2, sort_keys=True)
+                        f.write("\n")
+                    os.replace(temp_path, APP_API_009D_RESULTS_FILE)
             body = b"ok" if status == 200 else b"forbidden"
             headers = {"Content-Type": "text/plain", "Cache-Control": "no-store"}
             self.send_exact_response(status, headers, body, case_id)
@@ -911,7 +940,7 @@ def run():
     print(f"[*] Differential HTTP interceptor on 0.0.0.0:{HTTP_PORT}", flush=True)
 
     connection_probe_server = ConnectionProbeServer(("0.0.0.0", CONNECTION_PROBE_PORT), ConnectionProbeHandler)
-    print(f"[*] APP-API-009C raw TCP listener on 0.0.0.0:{CONNECTION_PROBE_PORT}", flush=True)
+    print(f"[*] Application raw TCP listener on 0.0.0.0:{CONNECTION_PROBE_PORT}", flush=True)
 
     if os.path.exists(CERT_FILE) and os.path.exists(KEY_FILE):
         https_server = HTTPServer(("0.0.0.0", HTTPS_PORT), DifferentialHandler)

@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:html="http://www.w3.org/1999/xhtml" version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111f"/>
+  <rect x="55" y="35" width="1170" height="650" rx="24" fill="#10243d" stroke="#35f2a1" stroke-width="5"/>
+  <text x="640" y="92" fill="#35f2a1" font-family="sans-serif" font-size="40" font-weight="bold" text-anchor="middle">APP-API-009D: NATIVE BRIDGE</text>
+  <text id="phase" x="640" y="132" fill="#a9bdd3" font-family="sans-serif" font-size="21" text-anchor="middle">Connection state and plugin reflection running</text>
+  <text id="detail" x="640" y="166" fill="#ffffff" font-family="sans-serif" font-size="19" text-anchor="middle">TCP remains restricted to this computer on port 39009.</text>
+
+  <rect id="button0" x="140" y="205" width="1000" height="78" rx="12" fill="#173451" stroke="#ffd166" stroke-width="6"/>
+  <text x="640" y="254" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">RUN SYNCHRONOUS TCP STATE TEST</text>
+  <rect id="button1" x="140" y="305" width="1000" height="78" rx="12" fill="#173451" stroke="#35506c" stroke-width="3"/>
+  <text x="640" y="354" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">RUN ASYNCHRONOUS TCP STATE TEST</text>
+  <rect id="button2" x="140" y="405" width="1000" height="78" rx="12" fill="#173451" stroke="#35506c" stroke-width="3"/>
+  <text x="640" y="454" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">REFLECT INSTANTIATED PLUGIN</text>
+  <rect id="button3" x="140" y="505" width="1000" height="78" rx="12" fill="#173451" stroke="#35506c" stroke-width="3"/>
+  <text x="640" y="554" fill="#ffffff" font-family="sans-serif" font-size="27" font-weight="bold" text-anchor="middle">END SESSION AND CLEAN NETWORK</text>
+  <text id="selection" x="640" y="625" fill="#60c8ff" font-family="sans-serif" font-size="20" text-anchor="middle">Selected: RUN SYNCHRONOUS TCP STATE TEST</text>
+  <text x="640" y="656" fill="#a9bdd3" font-family="sans-serif" font-size="18" text-anchor="middle">UP / DOWN selects. OK runs one bounded action.</text>
+
+  <foreignObject x="-20" y="-20" width="1" height="1">
+    <html:object id="pluginProbe" type="application/mozilla-npruntime-scriptable-plugin" width="1" height="1"/>
+  </foreignObject>
+
+  <script type="text/ecmascript"><![CDATA[
+    var selected = 0;
+    var sequence = 0;
+    var activeConnection = null;
+    var pollTimer = null;
+    var labels = ["RUN SYNCHRONOUS TCP STATE TEST", "RUN ASYNCHRONOUS TCP STATE TEST", "REFLECT INSTANTIATED PLUGIN", "END SESSION AND CLEAN NETWORK"];
+
+    function report(name, value) {
+      try {
+        var xhr = new XMLHttpRequest();
+        if (name == "event" || name == "state") { sequence += 1; name += "." + sequence; }
+        xhr.open("GET", "http://191.32.31.251/app-api-009d/report?name=" + encodeURIComponent(name) + "&value=" + encodeURIComponent(String(value)), true);
+        xhr.send(null);
+      } catch (error) {}
+    }
+
+    function namesOf(value) {
+      var names = [];
+      var name;
+      try {
+        if (typeof Object.getOwnPropertyNames == "function") { return Object.getOwnPropertyNames(value); }
+        for (name in value) { names[names.length] = name; }
+      } catch (error) {}
+      return names;
+    }
+
+    function reflect(name, value) {
+      var own = [];
+      var prototype = null;
+      var inherited = [];
+      var index;
+      report(name + ".type", typeof value);
+      if (value === null || typeof value == "undefined") { return; }
+      try { own = namesOf(value); report(name + ".properties", own.join(",")); } catch (error) { report(name + ".properties.error", error); }
+      try { prototype = Object.getPrototypeOf(value); inherited = namesOf(prototype); report(name + ".prototype.properties", inherited.join(",")); }
+      catch (error2) { report(name + ".prototype.error", error2); }
+      for (index = 0; index < inherited.length && index < 80; index += 1) {
+        try {
+          var member = value[inherited[index]];
+          var description = typeof member;
+          if (typeof member == "function") { description += ":length=" + member.length; }
+          else if (member === null || typeof member == "string" || typeof member == "number" || typeof member == "boolean") { description += ":value=" + String(member).substring(0, 160); }
+          report(name + ".member." + inherited[index], description);
+        } catch (memberError) { report(name + ".member." + inherited[index], "error:" + memberError); }
+      }
+    }
+
+    function setDetail(text) { try { document.getElementById("detail").firstChild.data = text; } catch (error) {} }
+
+    function readConnection(prefix, connection) {
+      var fields = ["connected", "timeout", "asynchronous"];
+      var methods = ["connect", "send", "receive", "close"];
+      var index;
+      for (index = 0; index < fields.length; index += 1) {
+        try { report(prefix + "." + fields[index], typeof connection[fields[index]] + ":" + String(connection[fields[index]])); }
+        catch (error) { report(prefix + "." + fields[index], "error:" + error); }
+      }
+      for (index = 0; index < methods.length; index += 1) {
+        try { report(prefix + "." + methods[index] + ".length", typeof connection[methods[index]] == "function" ? connection[methods[index]].length : "unavailable"); }
+        catch (error2) { report(prefix + "." + methods[index] + ".length", "error:" + error2); }
+      }
+    }
+
+    function closeConnection(prefix) {
+      if (pollTimer !== null) { try { clearInterval(pollTimer); } catch (error) {} pollTimer = null; }
+      if (activeConnection && typeof activeConnection.close == "function") {
+        try { report(prefix + ".close.return", String(activeConnection.close())); }
+        catch (error2) { report(prefix + ".close.error", String(error2)); }
+      }
+      activeConnection = null;
+    }
+
+    function exchange(prefix) {
+      if (!activeConnection) { return; }
+      try {
+        if (!activeConnection.connected) { report(prefix + ".exchange", "not-connected"); return; }
+        report(prefix + ".send.return", String(activeConnection.send("MERO-APP-API-009D\n")));
+        setTimeout(function() {
+          try { report(prefix + ".receive.return", String(activeConnection.receive()).substring(0, 240)); }
+          catch (receiveError) { report(prefix + ".receive.error", String(receiveError)); }
+          closeConnection(prefix);
+        }, 300);
+      } catch (error) { report(prefix + ".exchange.error", String(error)); closeConnection(prefix); }
+    }
+
+    function newConnection(prefix, asynchronous) {
+      closeConnection(prefix + ".previous");
+      try {
+        activeConnection = createConnection();
+        reflect(prefix + ".object", activeConnection);
+        readConnection(prefix + ".initial", activeConnection);
+        try { activeConnection.timeout = 3; report(prefix + ".set.timeout", "3=>" + activeConnection.timeout); }
+        catch (timeoutError) { report(prefix + ".set.timeout", "error:" + timeoutError); }
+        try { activeConnection.asynchronous = asynchronous; report(prefix + ".set.asynchronous", asynchronous + "=>" + activeConnection.asynchronous); }
+        catch (asyncError) { report(prefix + ".set.asynchronous", "error:" + asyncError); }
+        readConnection(prefix + ".configured", activeConnection);
+        return true;
+      } catch (error) { report(prefix + ".factory.error", String(error)); activeConnection = null; return false; }
+    }
+
+    function runSynchronous() {
+      var result;
+      report("event", "sync-selected");
+      setDetail("Testing synchronous state against workstation port 39009...");
+      if (!newConnection("sync", false)) { return; }
+      try { result = activeConnection.connect("191.32.31.251", 39009); report("sync.connect.return", typeof result + ":" + String(result)); }
+      catch (error) { report("sync.connect.error", String(error)); }
+      readConnection("sync.afterConnect", activeConnection);
+      exchange("sync");
+    }
+
+    function runAsynchronous() {
+      var result;
+      var polls = 0;
+      report("event", "async-selected");
+      setDetail("Testing asynchronous state against workstation port 39009...");
+      if (!newConnection("async", true)) { return; }
+      try { result = activeConnection.connect("191.32.31.251", "39009"); report("async.connect.return", typeof result + ":" + String(result)); }
+      catch (error) { report("async.connect.error", String(error)); }
+      readConnection("async.afterConnect", activeConnection);
+      pollTimer = setInterval(function() {
+        polls += 1;
+        try {
+          report("state", "async.poll=" + polls + ",connected=" + activeConnection.connected);
+          if (activeConnection.connected) { clearInterval(pollTimer); pollTimer = null; exchange("async"); }
+          else if (polls >= 12) { clearInterval(pollTimer); pollTimer = null; report("async.result", "not-connected-after-3s"); closeConnection("async"); }
+        } catch (error2) { report("async.poll.error", String(error2)); closeConnection("async"); }
+      }, 250);
+    }
+
+    function reflectPlugin() {
+      report("event", "plugin-reflect-selected");
+      setDetail("Reflecting instantiated plugin object without invoking unknown methods...");
+      try {
+        var element = document.getElementById("pluginProbe");
+        reflect("plugin.element", element);
+        try { reflect("plugin.object", element.object); } catch (error) { report("plugin.object.error", String(error)); }
+        try { reflect("plugin.contentDocument", element.contentDocument); } catch (error2) { report("plugin.contentDocument.error", String(error2)); }
+      } catch (outerError) { report("plugin.element.error", String(outerError)); }
+    }
+
+    function endSession() {
+      closeConnection("endSession");
+      report("event", "end-session-selected");
+      setDetail("Host cleanup requested. Wait for computer confirmation.");
+      try { var xhr = new XMLHttpRequest(); xhr.open("GET", "http://191.32.31.251/app-api/end-session", true); xhr.send(null); }
+      catch (error) { report("endSession.error", String(error)); }
+    }
+
+    function updateSelection() {
+      var index;
+      for (index = 0; index < 4; index += 1) {
+        document.getElementById("button" + index).setAttribute("stroke", selected == index ? "#ffd166" : "#35506c");
+        document.getElementById("button" + index).setAttribute("stroke-width", selected == index ? "6" : "3");
+      }
+      document.getElementById("selection").firstChild.data = "Selected: " + labels[selected];
+    }
+
+    function keyHandler(event) {
+      var code = event.keyCode || event.which || 0;
+      report("event", "key:" + code);
+      if (code == 38 || code == 37) { selected = (selected + 3) % 4; updateSelection(); }
+      else if (code == 40 || code == 39) { selected = (selected + 1) % 4; updateSelection(); }
+      else if (code == 13) {
+        if (selected == 0) { runSynchronous(); }
+        else if (selected == 1) { runAsynchronous(); }
+        else if (selected == 2) { reflectPlugin(); }
+        else { endSession(); }
+      }
+    }
+
+    function initialize() {
+      report("probe.version", "APP-API-009D-v1");
+      try { report("storage.previousPersistent", localStorage.getItem("mero_probe_009b_persist")); }
+      catch (storageError) { report("storage.error", String(storageError)); }
+      try { reflect("plugin.element.onload", document.getElementById("pluginProbe")); }
+      catch (pluginError) { report("plugin.onload.error", String(pluginError)); }
+      report("probe.complete", "yes");
+      document.getElementById("phase").firstChild.data = "Ready: state probes complete";
+    }
+
+    try { document.addEventListener("keydown", keyHandler, false); } catch (error) {}
+    try { document.documentElement.focus(); } catch (error2) {}
+    updateSelection(); initialize();
+  ]]></script>
+</svg>
