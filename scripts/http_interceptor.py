@@ -32,14 +32,27 @@ KEY_FILE = os.path.join(REPO_DIR, "web", "certs", "server.key")
 
 # Global active case state
 CURRENT_CASE = {
-    "case_id": "CASE-00-BASELINE",
-    "description": "Repeatable baseline - minimal JSON, no navigation fields, no redirects",
-    "bussola_status": 200,
-    "bussola_headers": {"Content-Type": "application/json; charset=utf-8"},
-    "bussola_body": json.dumps({"status": "ok", "code": 0}),
+    "case_id": "CASE-24-LIVE-PORTAL-INJECTION",
+    "description": "Foreground portal UI injection: 302 to /portal.svg with historical JSON + full appConfigFit.json",
+    "bussola_status": 302,
+    "bussola_headers": {
+        "Content-Type": "application/json; charset=utf-8",
+        "Location": "/portal.svg",
+        "Access-Control-Allow-Origin": "*",
+        "Connection": "close"
+    },
+    "bussola_body": json.dumps({
+        "status": "ok", "code": 0, "url": "/portal.svg",
+        "redirect": "/portal.svg", "redirectUrl": "/portal.svg",
+        "portalUrl": "/portal.svg", "vodUrl": "/portal.svg",
+        "target": "/portal.svg", "location": "/portal.svg",
+        "destination": "/portal.svg",
+        "result": {"url": "/portal.svg", "status": "ok"},
+        "data": {"url": "/portal.svg"}
+    }, indent=2),
     "appconfig_status": 200,
     "appconfig_headers": {"Content-Type": "application/json; charset=utf-8"},
-    "appconfig_body": json.dumps({"status": "ok", "code": 0}),
+    "appconfig_body": None,
 }
 CASE_LOCK = threading.Lock()
 
