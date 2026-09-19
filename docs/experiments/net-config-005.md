@@ -138,3 +138,52 @@ RESULT: HISTORICAL POSITIVE REPRODUCED. /portal.svg WAS FETCHED BY HARDWARE.
   - Gateway reachable: `0.550 ms` avg round-trip time, 0% packet loss.
   - DNS resolution: `example.com` resolved.
   - HTTPS egress: `https://example.com/` succeeded (code 0).
+
+
+---
+
+## 5. Next Phase: Systematic Reduction of the Known-Positive Response
+
+The historical positive is now treated as the control condition rather than as a hypothesis. The next phase changes one response property at a time while keeping the receiver, endpoint, trigger action, target path, and observation logic fixed.
+
+### Core reduction sequence
+
+| Case | Single intended change from the known-positive control | Question answered |
+| :--- | :--- | :--- |
+| `CASE-15-EXACT-HISTORICAL-D085` | None | Positive control: does `/portal.svg` still follow? |
+| `CASE-16-HISTORICAL-HTTP11` | `HTTP/1.0` → `HTTP/1.1` | Is HTTP version part of the trigger? |
+| `CASE-17-HISTORICAL-SERVER-GENERIC` | `Server: gvt-probe` → generic harness server value | Does the client depend on the historical Server header? |
+| `CASE-18-HISTORICAL-NO-LOCATION` | Remove only the `Location` header | Can the historical JSON body trigger the follow-up without HTTP redirect semantics? |
+| `CASE-19-302-LOCATION-MINIMAL-BODY` | Keep HTTP 302 + `Location`, remove all candidate navigation JSON keys | Is `Location` sufficient by itself? |
+
+Run with:
+
+```bash
+python3 scripts/run_differential_campaign.py --sequence-reduction-core
+```
+
+Interpretation is intentionally differential:
+
+- If CASE-16 fails while CASE-15 succeeds, HTTP/1.0 semantics become a required condition.
+- If CASE-17 fails while CASE-15 succeeds, the historical `Server` header becomes a required condition.
+- If CASE-18 still follows `/portal.svg`, one or more JSON fields can drive the follow-up without a `Location` header.
+- If CASE-18 fails but CASE-19 succeeds, the evidence strongly isolates the HTTP 302 `Location` header as sufficient for the observed fetch, with the large JSON body unnecessary.
+
+### JSON-key isolation sequence
+
+If CASE-18 is positive, isolate candidate fields individually under the same HTTP/1.0 + 302 + no-`Location` envelope:
+
+| Case | Candidate retained |
+| :--- | :--- |
+| `CASE-20-JSON-URL-ONLY` | `url` |
+| `CASE-21-JSON-PORTALURL-ONLY` | `portalUrl` |
+| `CASE-22-JSON-REDIRECTURL-ONLY` | `redirectUrl` |
+| `CASE-23-JSON-VODURL-ONLY` | `vodUrl` |
+
+Run with:
+
+```bash
+python3 scripts/run_differential_campaign.py --sequence-json-keys
+```
+
+This second sequence should only be treated as informative if the no-`Location` full historical JSON case is itself positive; otherwise the client has already told us that the HTTP redirect layer, rather than those JSON keys, explains the known follow-up fetch.
