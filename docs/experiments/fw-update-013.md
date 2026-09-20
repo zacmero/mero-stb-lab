@@ -15,8 +15,24 @@ The receiver exposes these version strings:
 - request firmware: `RC1.12.12`
 - request software: `1.0.5`
 - configuration version: `1.320.1.0.5`
+- on-device firmware information screen: `RC1.12.12`
+- on-device firmware build timestamp: `Sep 12 2018 - 17:42:30`
+- on-device hardware model: `NSST44GV03.01`
+- on-device model description: `DSI74 V2 HD GVT (ZAPPER)`
+- on-device version: `1.322.20180523`
+- on-device audio format: `MPEG-2`
 
 These strings identify installed components. They do not identify an update package or prove that the receiver supports network updates.
+
+The information screen also displayed a unique conditional-access identifier
+and receiver serial number. Those values were verified during the session but
+are intentionally excluded from the public repository. The full identifiers
+are not required for firmware-family research and may be subscriber/device
+credentials.
+
+Exact public searches for `NSST44GV03.01`, `1.322.20180523`, and `RC1.12.12`
+returned no indexed firmware, source tree, manual, or archive item. This is a
+negative search result, not evidence that no package exists.
 
 ## Aborted pass-through capture
 
