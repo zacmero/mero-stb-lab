@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>APP-NATIVE-018</title>
+  <style>
+    body { margin: 0; background: #07111f; color: #eef6ff; font-family: sans-serif; }
+    h1 { color: #49e3a4; margin: 55px 70px 15px; font-size: 42px; }
+    p { margin: 12px 70px; font-size: 24px; }
+    #status { color: #ffd166; }
+    object, embed { position: absolute; left: 0; top: 0; width: 1px; height: 1px; }
+  </style>
+</head>
+<body>
+  <h1>APP-NATIVE-018</h1>
+  <p>Top-level native plugin reflection</p>
+  <p id="status">Starting...</p>
+  <p id="detail">No unknown native method will be invoked.</p>
+  <object id="nativeObject" type="application/mozilla-npruntime-scriptable-plugin">
+    <param name="probe" value="MERO-APP-NATIVE-018">
+  </object>
+  <embed id="nativeEmbed" type="application/mozilla-npruntime-scriptable-plugin"
+         probe="MERO-APP-NATIVE-018">
+  <script>
+  (function () {
+    var base = "http://191.32.31.251/app-native-018/report?";
+    function text(id, value) {
+      var node = document.getElementById(id);
+      if (node) { node.innerHTML = value; }
+    }
+    function send(key, value) {
+      var xhr;
+      try {
+        xhr = new XMLHttpRequest();
+        xhr.open("GET", base + "key=" + encodeURIComponent(key) +
+          "&value=" + encodeURIComponent(String(value)), true);
+        xhr.send(null);
+      } catch (error) {}
+    }
+    function names(value) {
+      var output = [], key;
+      try {
+        if (Object.getOwnPropertyNames) { return Object.getOwnPropertyNames(value); }
+      } catch (error) {}
+      try { for (key in value) { output[output.length] = key; } } catch (error2) {}
+      return output;
+    }
+    function reflect(label, value) {
+      var current = value, level = 0, list;
+      send(label + ".typeof", typeof value);
+      send(label + ".string", String(value));
+      while (current && level < 5) {
+        try {
+          list = names(current);
+          send(label + ".level" + level, list.slice(0, 180).join("|"));
+          current = Object.getPrototypeOf ? Object.getPrototypeOf(current) : null;
+        } catch (error) {
+          send(label + ".level" + level + ".error", error);
+          break;
+        }
+        level += 1;
+      }
+      try { send(label + ".object", typeof value.object + ":" + String(value.object)); }
+      catch (error2) { send(label + ".object.error", error2); }
+    }
+    function run() {
+      var objectElement = document.getElementById("nativeObject");
+      var embedElement = document.getElementById("nativeEmbed");
+      send("page.loaded", "true");
+      reflect("object.element", objectElement);
+      reflect("embed.element", embedElement);
+      try { reflect("object.native", objectElement.object); }
+      catch (error) { send("object.native.error", error); }
+      try { reflect("embed.native", embedElement.object); }
+      catch (error2) { send("embed.native.error", error2); }
+      text("status", "Reflection complete");
+      text("detail", "Results delivered to isolated host. Cold reboot exits this page.");
+      send("probe.complete", "true");
+    }
+    if (window.addEventListener) { window.addEventListener("load", run, false); }
+    else { window.onload = run; }
+  }());
+  </script>
+</body>
+</html>

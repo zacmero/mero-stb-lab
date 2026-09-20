@@ -75,9 +75,51 @@ class InterfaceHTTPServer(http.server.ThreadingHTTPServer):
 
     def response_for(self, method: str, target: str) -> tuple[int, dict[str, str], bytes]:
         path = target.split("?", 1)[0]
-        if self.profile == "baseline":
+        if self.profile in ("baseline", "native018", "native018b", "native018c", "native018d", "native018e"):
             if path == "/":
                 return 200, {"Content-Type": "text/plain; charset=utf-8"}, b"OK\n"
+            if self.profile == "native018" and path == "/bussola/redirect":
+                return 302, {"Content-Type": "text/plain", "Location": "/app-native-018.html"}, b""
+            if self.profile == "native018" and path == "/app-native-018.html":
+                return (
+                    200,
+                    {"Content-Type": "text/html; charset=utf-8"},
+                    (self.asset_root / "app-native-018.html").read_bytes(),
+                )
+            if self.profile == "native018b" and path == "/bussola/redirect":
+                return 302, {"Content-Type": "text/plain", "Location": "/app-native-018b.xhtml"}, b""
+            if self.profile == "native018b" and path == "/app-native-018b.xhtml":
+                return (
+                    200,
+                    {"Content-Type": "application/xhtml+xml; charset=utf-8"},
+                    (self.asset_root / "app-native-018b.xhtml").read_bytes(),
+                )
+            if self.profile == "native018c" and path == "/bussola/redirect":
+                return 302, {"Content-Type": "text/plain", "Location": "/app-native-018c.svg"}, b""
+            if self.profile == "native018c" and path == "/app-native-018c.svg":
+                return (
+                    200,
+                    {"Content-Type": "image/svg+xml; charset=utf-8"},
+                    (self.asset_root / "app-native-018c.svg").read_bytes(),
+                )
+            if self.profile == "native018d" and path == "/bussola/redirect":
+                return 302, {"Content-Type": "text/plain", "Location": "/app-native-018d.svg"}, b""
+            if self.profile == "native018d" and path == "/app-native-018d.svg":
+                return (
+                    200,
+                    {"Content-Type": "image/svg+xml; charset=utf-8"},
+                    (self.asset_root / "app-native-018d.svg").read_bytes(),
+                )
+            if self.profile == "native018e" and path == "/bussola/redirect":
+                return 302, {"Content-Type": "text/plain", "Location": "/app-native-018e.svg"}, b""
+            if self.profile == "native018e" and path == "/app-native-018e.svg":
+                return (
+                    200,
+                    {"Content-Type": "image/svg+xml; charset=utf-8"},
+                    (self.asset_root / "app-native-018e.svg").read_bytes(),
+                )
+            if self.profile in ("native018", "native018b", "native018c", "native018d", "native018e") and path == "/app-native-018/report":
+                return 200, {"Content-Type": "text/plain"}, b"OK\n"
             routes = {
                 "/mirada1-destaques/highlights_config.xml": (
                     "mirada1-destaques/highlights_config.xml",
@@ -111,7 +153,11 @@ def main() -> None:
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=80)
     parser.add_argument("--interface", required=True)
-    parser.add_argument("--profile", choices=("observe", "baseline"), default="observe")
+    parser.add_argument(
+        "--profile",
+        choices=("observe", "baseline", "native018", "native018b", "native018c", "native018d", "native018e"),
+        default="observe",
+    )
     parser.add_argument("--asset-root", type=Path, default=Path.cwd())
     parser.add_argument("--log", type=Path, required=True)
     args = parser.parse_args()

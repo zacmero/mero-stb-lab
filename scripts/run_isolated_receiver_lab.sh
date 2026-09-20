@@ -43,11 +43,26 @@ cleanup() {
 trap cleanup EXIT INT TERM HUP
 
 [[ "$EUID" -eq 0 ]] || die "run with sudo"
-[[ "$PROFILE" == "observe" || "$PROFILE" == "baseline" ]] || die "invalid PROFILE: ${PROFILE}"
+[[ "$PROFILE" == "observe" || "$PROFILE" == "baseline" || "$PROFILE" == "native018" || "$PROFILE" == "native018b" || "$PROFILE" == "native018c" || "$PROFILE" == "native018d" || "$PROFILE" == "native018e" ]] || die "invalid PROFILE: ${PROFILE}"
 [[ "$TLS_PROXY" == "0" || "$TLS_PROXY" == "1" ]] || die "invalid TLS_PROXY: ${TLS_PROXY}"
-if [[ "$PROFILE" == "baseline" ]]; then
+if [[ "$PROFILE" == "baseline" || "$PROFILE" == "native018" || "$PROFILE" == "native018b" || "$PROFILE" == "native018c" || "$PROFILE" == "native018d" || "$PROFILE" == "native018e" ]]; then
   [[ -f "$ASSET_ROOT/tv-config/appConfigFit.json" ]] || die "missing baseline assets: ${ASSET_ROOT}"
   [[ -f "$ASSET_ROOT/mirada1-destaques/highlights_config.xml" ]] || die "missing baseline assets: ${ASSET_ROOT}"
+fi
+if [[ "$PROFILE" == "native018" ]]; then
+  [[ -f "$ASSET_ROOT/app-native-018.html" ]] || die "missing APP-NATIVE-018 asset: ${ASSET_ROOT}"
+fi
+if [[ "$PROFILE" == "native018b" ]]; then
+  [[ -f "$ASSET_ROOT/app-native-018b.xhtml" ]] || die "missing APP-NATIVE-018B asset: ${ASSET_ROOT}"
+fi
+if [[ "$PROFILE" == "native018c" ]]; then
+  [[ -f "$ASSET_ROOT/app-native-018c.svg" ]] || die "missing APP-NATIVE-018C asset: ${ASSET_ROOT}"
+fi
+if [[ "$PROFILE" == "native018d" ]]; then
+  [[ -f "$ASSET_ROOT/app-native-018d.svg" ]] || die "missing APP-NATIVE-018D asset: ${ASSET_ROOT}"
+fi
+if [[ "$PROFILE" == "native018e" ]]; then
+  [[ -f "$ASSET_ROOT/app-native-018e.svg" ]] || die "missing APP-NATIVE-018E asset: ${ASSET_ROOT}"
 fi
 [[ -d "/sys/class/net/${IFACE}" ]] || die "missing interface ${IFACE}"
 [[ -d "/sys/class/net/${CONTROL_IFACE}" ]] || die "missing control interface ${CONTROL_IFACE}"

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>APP-NATIVE-018B</title>
+  <style type="text/css">
+    body { margin: 0; background: #07111f; color: #eef6ff; font-family: sans-serif; }
+    h1 { color: #49e3a4; margin: 55px 70px 15px; font-size: 42px; }
+    p { margin: 12px 70px; font-size: 24px; }
+    #status { color: #ffd166; }
+    object, embed { position: absolute; left: 0; top: 0; width: 1px; height: 1px; }
+  </style>
+  <script type="text/javascript"><![CDATA[
+  var reportBase = "http://191.32.31.251/app-native-018/report?";
+  function reportValue(key, value) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", reportBase + "key=" + encodeURIComponent(key) +
+        "&value=" + encodeURIComponent(String(value)), true);
+      xhr.send(null);
+    } catch (error) {}
+  }
+  function ownNames(value) {
+    var output = [], key;
+    try {
+      if (Object.getOwnPropertyNames) { return Object.getOwnPropertyNames(value); }
+    } catch (error) {}
+    try { for (key in value) { output[output.length] = key; } } catch (error2) {}
+    return output;
+  }
+  function reflectValue(label, value) {
+    var current = value, level = 0, list;
+    reportValue(label + ".typeof", typeof value);
+    reportValue(label + ".string", String(value));
+    while (current && level < 5) {
+      try {
+        list = ownNames(current);
+        reportValue(label + ".level" + level, list.slice(0, 180).join("|"));
+        current = Object.getPrototypeOf ? Object.getPrototypeOf(current) : null;
+      } catch (error) {
+        reportValue(label + ".level" + level + ".error", error);
+        break;
+      }
+      level += 1;
+    }
+    try { reportValue(label + ".object", typeof value.object + ":" + String(value.object)); }
+    catch (error2) { reportValue(label + ".object.error", error2); }
+  }
+  function runProbe() {
+    var objectElement = document.getElementById("nativeObject");
+    var embedElement = document.getElementById("nativeEmbed");
+    reportValue("xhtml.loaded", "true");
+    reflectValue("object.element", objectElement);
+    reflectValue("embed.element", embedElement);
+    try { reflectValue("object.native", objectElement.object); }
+    catch (error) { reportValue("object.native.error", error); }
+    try { reflectValue("embed.native", embedElement.object); }
+    catch (error2) { reportValue("embed.native.error", error2); }
+    document.getElementById("status").firstChild.data = "Reflection complete";
+    reportValue("probe.complete", "true");
+  }
+  ]]></script>
+</head>
+<body onload="runProbe()">
+  <h1>APP-NATIVE-018B</h1>
+  <p>Strict top-level XHTML plugin reflection</p>
+  <p id="status">Starting...</p>
+  <p>No unknown native method will be invoked.</p>
+  <object id="nativeObject" type="application/mozilla-npruntime-scriptable-plugin">
+    <param name="probe" value="MERO-APP-NATIVE-018B" />
+  </object>
+  <embed id="nativeEmbed" type="application/mozilla-npruntime-scriptable-plugin"
+         probe="MERO-APP-NATIVE-018B" />
+</body>
+</html>

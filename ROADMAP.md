@@ -31,6 +31,7 @@
 | **APP-API-009C** | Bounded raw Ekioh connection lab | **COMPLETED, LIMITED** | Real connect/send/receive and listen/close objects found; tested client did not connect and tested listener remained LAN-filtered. |
 | **APP-API-009D** | Connection state and native plugin probe | **COMPLETED, LIMITED** | Cross-boot `localStorage` confirmed. Connection calls emitted no SYN; XHTML-in-SVG plugin object was unavailable through the DOM. |
 | **APP-API-009E** | Comprehensive runtime capability mapper | **COMPLETED, LIMITED** | Module activation negative; transport signatures inert; storage/XML/standard timer positive; concurrent reports stalled full inventory. |
+| **APP-NATIVE-018** | Scriptable-plugin MIME instantiation | **COMPLETED, LIMITED / NEGATIVE** | Controlled SVG script ran; a dynamic XHTML `<embed>` remained an `SVGElement` and `.object` was undefined. |
 | **RUNTIME-MAP-009F** | Sequential capability mapper | **COMPLETED, POSITIVE** | Automatic 77-field run completed; native timer objects exposed; exact ARP validation replaced stale ping/neighbor identity. |
 | **RUNTIME-PROBE-009G** | Combined runtime behavior probe | **COMPLETED, POSITIVE** | Native timer ran and stopped; UTF-8 binary conversion, DOM events, JSON/storage, intervals, and heap readings verified automatically. |
 | **APP-HUB-010** | Persistent in-app experiment hub | **COMPLETED, POSITIVE** | Manifest-driven v1 → v2 replacement, retained run counting, and automatic cleanup verified without replacing the foreground document. |
