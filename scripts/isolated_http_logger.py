@@ -16,6 +16,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _handle(self) -> None:
         length = min(int(self.headers.get("Content-Length", "0") or 0), 1_048_576)
         body = self.rfile.read(length) if length else b""
+        status, response_headers, response = self.server.response_for(  # type: ignore[attr-defined]
+            self.command, self.path
+        )
         record = {
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "client": self.client_address[0],
@@ -25,14 +28,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "body_length": len(body),
             "body_sha256": hashlib.sha256(body).hexdigest(),
             "body_preview": body[:4096].decode("utf-8", "replace"),
+            "response_status": status,
+            "response_length": len(response),
+            "profile": self.server.profile,  # type: ignore[attr-defined]
         }
         with self.server.log_path.open("a", encoding="utf-8") as stream:  # type: ignore[attr-defined]
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-        print(f"HTTP {record['timestamp']} {record['client']} {self.command} {self.path}", flush=True)
+        print(
+            f"HTTP {record['timestamp']} {record['client']} {self.command} "
+            f"{self.path} -> {status}",
+            flush=True,
+        )
 
-        response = b"MERO isolated observation: no response configured\n"
-        self.send_response(404)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_response(status)
+        for name, value in response_headers.items():
+            self.send_header(name, value)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(response)))
         self.send_header("Connection", "close")
@@ -47,12 +57,53 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 class InterfaceHTTPServer(http.server.ThreadingHTTPServer):
-    def __init__(self, address: tuple[str, int], handler: type[Handler], interface: str):
+    def __init__(
+        self,
+        address: tuple[str, int],
+        handler: type[Handler],
+        interface: str,
+        profile: str,
+        asset_root: Path,
+    ):
         self.interface = interface
+        self.profile = profile
+        self.asset_root = asset_root
         super().__init__(address, handler, bind_and_activate=False)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode() + b"\0")
         self.server_bind()
         self.server_activate()
+
+    def response_for(self, method: str, target: str) -> tuple[int, dict[str, str], bytes]:
+        path = target.split("?", 1)[0]
+        if self.profile == "baseline":
+            if path == "/":
+                return 200, {"Content-Type": "text/plain; charset=utf-8"}, b"OK\n"
+            routes = {
+                "/mirada1-destaques/highlights_config.xml": (
+                    "mirada1-destaques/highlights_config.xml",
+                    "application/xml; charset=utf-8",
+                ),
+                "/tv-config/appConfigFit.json": (
+                    "tv-config/appConfigFit.json",
+                    "application/json; charset=utf-8",
+                ),
+            }
+            if path in routes:
+                relative, content_type = routes[path]
+                return 200, {"Content-Type": content_type}, (self.asset_root / relative).read_bytes()
+            if path == "/tv-config/backupIpConfig.json":
+                return (
+                    200,
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    b'{"status":"ok","code":0,"ack":true}\n',
+                )
+            if path.startswith("/paytv-stats"):
+                return 200, {"Content-Type": "application/json"}, b'{"status":"ok","code":0}\n'
+        return (
+            404,
+            {"Content-Type": "text/plain; charset=utf-8"},
+            b"MERO isolated observation: no response configured\n",
+        )
 
 
 def main() -> None:
@@ -60,11 +111,19 @@ def main() -> None:
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=80)
     parser.add_argument("--interface", required=True)
+    parser.add_argument("--profile", choices=("observe", "baseline"), default="observe")
+    parser.add_argument("--asset-root", type=Path, default=Path.cwd())
     parser.add_argument("--log", type=Path, required=True)
     args = parser.parse_args()
-    server = InterfaceHTTPServer((args.bind, args.port), Handler, args.interface)
+    server = InterfaceHTTPServer(
+        (args.bind, args.port), Handler, args.interface, args.profile, args.asset_root
+    )
     server.log_path = args.log
-    print(f"HTTP logger listening on {args.interface} {args.bind}:{args.port}", flush=True)
+    print(
+        f"HTTP logger listening on {args.interface} {args.bind}:{args.port} "
+        f"profile={args.profile}",
+        flush=True,
+    )
     server.serve_forever()
 
 

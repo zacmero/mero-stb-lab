@@ -158,6 +158,32 @@ The observation responder returned HTTP 404. Vivo Play returned cleanly to the
 normal no-service television screen. No firmware manifest, package request, or
 update path appeared in this boot-plus-Vivo-Play sequence.
 
+A corrected baseline-response run returned HTTP 200 for known boot resources.
+It revealed an additional zero-body request:
+
+```http
+POST /tv-config/backupIpConfig.json HTTP/1.1
+User-Agent: curl/7.32.0
+Host: 191.32.31.251
+Content-Type: application/json
+Accept: application/json
+```
+
+The runner returned the verified minimal acknowledgement
+`{"status":"ok","code":0,"ack":true}`. No new destination or update request
+followed. An earlier baseline attempt accidentally returned a repository test
+fixture containing `192.168.1.97:8080`; all downstream behavior from that
+response is excluded. Forwarding was disabled, so that stale address was not
+reachable through the lab laptop.
+
+The next run passed only the DNS-resolved boot-time TLS connection through to
+the authentic `ucstb.vivoplay.com.br` service. Certificate verification
+succeeded end-to-end. The receiver sent 1,235 encrypted bytes and received
+4,536 encrypted bytes; the connection closed normally after 950 ms. No package
+download, new destination, or firmware request followed. A later Vivo Play
+launch did not create another TLS session and used only the known HTTP
+`/bussola/redirect` and `/tv-config/appConfigFit.json` paths.
+
 The reproducible setup and analysis commands are documented separately in
 [`docs/tooling/isolated-ethernet-lab.md`](../tooling/isolated-ethernet-lab.md).
 

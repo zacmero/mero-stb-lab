@@ -42,6 +42,8 @@ second interface. Reassigning the interface carrying SSH will end that session.
 - `dnsmasq`: exact-MAC DHCP lease and catch-all local DNS.
 - `tcpdump`: full receiver packet capture.
 - Python `http.server`: interface-bound request logger and 404 responder.
+- `isolated_tls_proxy.py`: bounded byte-for-byte TLS pass-through to the
+  authentic provisioning service without certificate substitution.
 - `ss` and `pgrep`: verify listeners and child processes.
 - `jq`: inspect JSON Lines request records.
 - `sha256sum`: verify deployed scripts.
@@ -51,6 +53,7 @@ Repository components:
 
 - `scripts/run_isolated_receiver_lab.sh`
 - `scripts/isolated_http_logger.py`
+- `scripts/isolated_tls_proxy.py`
 
 ## Prepare the lab computer
 
@@ -129,11 +132,44 @@ The runner assigns only:
 10.74.0.1/24
 191.32.31.251/32
 186.215.183.217/32
-213.140.61.225/32
 ```
 
 It does not enable forwarding, NAT, ARP spoofing, or firewall rules. The HTTP
 socket is restricted to the receiver interface with `SO_BINDTODEVICE`.
+
+### Response profiles
+
+The default `observe` profile logs requests and returns 404. The `baseline`
+profile returns 200 only for previously verified health, highlights, primary
+configuration, backup configuration, and telemetry paths. Unknown paths remain
+404, including any unrecognized update or package request.
+
+Start the baseline profile with:
+
+```bash
+sudo env PROFILE=baseline \
+  "$HOME/mero-stb-isolated/scripts/run_isolated_receiver_lab.sh"
+```
+
+### Bounded authentic TLS pass-through
+
+The optional TLS proxy binds only `10.74.0.1%enp6s0:443`. It connects to the
+authentic `ucstb.vivoplay.com.br` address through `wlp4s0`, preserves end-to-end
+TLS, and does not decrypt or replace the server certificate. The hardcoded
+`191.32.31.251:443` endpoint remains blocked.
+
+Each connection is capped at 20 seconds and 1 MiB per direction. Enable it:
+
+```bash
+sudo env PROFILE=baseline TLS_PROXY=1 \
+  "$HOME/mero-stb-isolated/scripts/run_isolated_receiver_lab.sh"
+```
+
+Inspect its connection ledger:
+
+```bash
+jq . "$run/tls-proxy.jsonl"
+```
 
 ## Analyze data
 
