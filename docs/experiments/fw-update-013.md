@@ -118,6 +118,33 @@ rules are independently verified.
 
 The workstation exposes only one active Ethernet interface. A transparent two-port capture bridge is therefore not currently available without adding or reconfiguring network hardware. No bridge configuration was attempted.
 
+## Isolated direct-Ethernet capture
+
+On 2026-09-19, the receiver was connected directly to a separate Ubuntu lab
+laptop. The laptop retained its control connection through Wi-Fi and dedicated
+`enp6s0` exclusively to the receiver. The runner disabled IPv4 forwarding and
+used no NAT, ARP spoofing, or firewall rules.
+
+The verified receiver MAC obtained `10.74.0.10` from the exact-MAC DHCP lease.
+Its DHCP vendor class was `udhcp 1.20.2`. Boot and one Vivo Play launch produced:
+
+- DNS `A` query for `ucstb.vivoplay.com.br`;
+- HTTPS connection attempts to the locally resolved address and
+  `191.32.31.251:443`;
+- `GET /mirada1-destaques/highlights_config.xml?...` with Host
+  `186.215.183.217` and User-Agent `Ekioh v2.2.4.5-sagem (Mar 2 2013) r10767`;
+- `HEAD /` with Host `191.32.31.251`;
+- `GET /tv-config/appConfigFit.json`;
+- `GET /bussola/redirect?type=vod&...`;
+- ICMP connectivity probes to `8.8.8.8`, then the supplied gateway.
+
+The observation responder returned HTTP 404. Vivo Play returned cleanly to the
+normal no-service television screen. No firmware manifest, package request, or
+update path appeared in this boot-plus-Vivo-Play sequence.
+
+The reproducible setup and analysis commands are documented separately in
+[`docs/tooling/isolated-ethernet-lab.md`](../tooling/isolated-ethernet-lab.md).
+
 ## Safe continuation
 
 Continue without LAN interception:

@@ -64,6 +64,7 @@ flowchart TD
 - **[APP-HUB-010](docs/experiments/app-hub-010.md): COMPLETED (RESULT: POSITIVE)** — The persistent foreground hub hot-loads versioned experiment modules without additional cold boots or remote actions.
 - **[USB-CAP-012](docs/experiments/usb-cap-012.md): COMPLETED (RESULT: NEGATIVE, LIMITED)** — Ekioh rejected tested local-file and USB URI reads; OS-level USB detection remains unknown.
 - **[FW-UPDATE-013](docs/experiments/fw-update-013.md): IN PROGRESS** — ARP pass-through capture was retired after a brief LAN disruption; offline service, archive, and firmware-package discovery continues.
+- **[Isolated Ethernet Receiver Lab](docs/tooling/isolated-ethernet-lab.md)** — Direct-cable DHCP/DNS/HTTP/pcap tooling with reproducible connection, analysis, and cleanup steps; no ARP spoofing.
 - **[NETWORK-SERVICE-011](docs/experiments/network-service-011.md): COMPLETED (RESULT: NO LAN-REACHABLE SERVICE IDENTIFIED)** — All TCP ports silently filtered; bounded UDP and passive probes identified no responding maintenance or discovery service.
 
 ---
