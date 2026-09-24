@@ -38,6 +38,8 @@
 | **USB-CAP-012** | Application-visible USB and local-file access | **COMPLETED, NEGATIVE/LIMITED** | Five cycles found no readable OS file or USB marker through `XMLHttpRequest` or `getURL`; OS-level USB remains unknown. |
 | **FW-UPDATE-013** | Firmware and update-service discovery | **IN PROGRESS** | ARP pass-through retired after LAN disruption. Public Cardiff builds establish a SH4 Linux + `uImage` + UBI/UBIFS reference architecture, but no DSI74-compatible image or verified board map exists. Continue offline package research. |
 | **MEDIA-010** | Local media pipeline probe | **COMPLETED, LIMITED** | SVG audio API invoked and WAV fetched; no audible playback. Standard HTML media playback APIs absent. |
+| **VIDEO-STREAM-019** | Router-connected bedroom video library | **DELIVERED; NO PLAYBACK** | Receiver fetched complete MPEG-2 and MP4 clips, but Vivo Play stayed on “Please wait.” Find a native playback entry point before further live format trials. |
+| **MEDIA-CONTROL-020** | Native media bridge discovery | **PROBED; NO LOAD** | Ekioh media-control objects appeared, but fields were undefined and SVG video made no source request. Research the native player contract before another live media trial. |
 | **NETWORK-SERVICE-011** | Exact-device LAN service inventory | **COMPLETED** | All TCP ports silently filtered; UDP probes received no identifying response. |
 | **BOOT-KEY-001** | Front-panel & remote control boot straps | **QUEUED** | Zero-cost hardware exploration. |
 | **USB-HID-001** | USB PC keyboard bootloader interruption | **QUEUED** | Zero-cost console testing. |

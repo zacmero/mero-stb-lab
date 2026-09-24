@@ -18,7 +18,9 @@ import ssl
 import signal
 import socketserver
 import threading
+from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from video_library_server import Handler as VideoLibraryHandler, library as video_library
 
 HTTP_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
 LOG_FILE = sys.argv[2] if len(sys.argv) > 2 else "/home/zacmero/projects/mero-stb-lab/captures/net-config-005.log"
@@ -320,6 +322,34 @@ class DifferentialHandler(BaseHTTPRequestHandler):
         req_body = self.read_bounded_body()
         active_case = get_active_case()
         case_id = active_case.get("case_id", "BASELINE")
+        if os.environ.get("MERO_LAUNCH_APP") in ("video019", "video019_direct") and path.startswith("/video019/"):
+            source = classify_client(self.client_address[0])
+            if source not in ("RECEIVER_HW", "LOCAL_SELFTEST"):
+                self.send_error(403)
+                return
+            if path == "/video019/report":
+                print(f"VIDEO019_REPORT {source} {self.client_address[0]} {self.path}", flush=True)
+                self.send_exact_response(200, {"Content-Type": "text/plain", "Cache-Control": "no-store"}, b"ok", case_id)
+                return
+            if path == "/video019/list" or path.startswith("/video019/media/"):
+                self.server.root = Path(os.environ.get("MERO_VIDEO_DIR", "/home/zacmero/Videos"))
+                self.server.allowed_client = self.client_address[0]
+                print(f"VIDEO019_REQUEST {source} {self.client_address[0]} {method} {self.path} range={self.headers.get('Range', '')}", flush=True)
+                VideoLibraryHandler.handle_video(self, send_body=(method != "HEAD"))
+                return
+        if os.environ.get("MERO_LAUNCH_APP") == "video019" and path == "/video019.svg":
+            with open(os.path.join(REPO_DIR, "web", "video019.svg"), "rb") as video_app:
+                body = video_app.read()
+            root = Path(os.environ.get("MERO_VIDEO_DIR", "/home/zacmero/Videos"))
+            entries = sorted(video_library(root).items(), key=lambda entry: str(entry[1]).lower())
+            first_url = "http://191.32.31.251/video019/media/" + entries[0][0] if entries else ""
+            body = body.replace(b"__VIDEO019_INITIAL_MEDIA__", first_url.encode("ascii"))
+            first_title = "1/%d %s" % (len(entries), entries[0][1].name) if entries else "No videos in library"
+            body = body.replace(b"__VIDEO019_INITIAL_TITLE__", html.escape(first_title).encode("utf-8"))
+            headers = {"Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": "no-store"}
+            self.send_exact_response(200, headers, body, case_id)
+            self.record_transaction(method, self.path, req_body, 200, headers, body, case_id)
+            return
 
         # -------------------------------------------------------------
         # Admin / Harness Dynamic Control Endpoint
@@ -573,7 +603,21 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/launch.svg":
-            destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/app-hub.svg"
+            launch_app = os.environ.get("MERO_LAUNCH_APP")
+            if launch_app == "video019_direct":
+                root = Path(os.environ.get("MERO_VIDEO_DIR", "/home/zacmero/Videos"))
+                entries = sorted(video_library(root).items(), key=lambda entry: str(entry[1]).lower())
+                preferred_ext = os.environ.get("MERO_VIDEO_PREFERRED_EXT", "").lower()
+                if preferred_ext:
+                    entries = [entry for entry in entries if entry[1].suffix.lower() == preferred_ext]
+                if not entries:
+                    self.send_error(404, "No matching video in library")
+                    return
+                destination = "/video019/media/" + entries[0][0]
+            elif launch_app == "video019":
+                destination = "/video019.svg"
+            else:
+                destination = "/remote-map.svg" if get_remote_map_state()["active"] else "/app-hub.svg"
             body = b""
             headers = {"Location": destination, "Cache-Control": "no-store"}
             self.send_exact_response(302, headers, body, case_id)
@@ -725,11 +769,12 @@ class DifferentialHandler(BaseHTTPRequestHandler):
             self.record_transaction(method, self.path, req_body, status, headers, body, case_id)
             return
 
-        if path in ("/app-hub.svg", "/app-hub-module.js", "/app-hub-manifest.json"):
+        if path in ("/app-hub.svg", "/app-hub-module.js", "/app-hub-manifest.json", "/media-control-020.js"):
             filename = {
                 "/app-hub.svg": "app-hub.svg",
                 "/app-hub-module.js": "app-hub-module.js",
                 "/app-hub-manifest.json": "app-hub-manifest.json",
+                "/media-control-020.js": "media-control-020.js",
             }[path]
             with open(os.path.join(REPO_DIR, "web", filename), "rb") as f:
                 body = f.read()
@@ -737,6 +782,7 @@ class DifferentialHandler(BaseHTTPRequestHandler):
                 "/app-hub.svg": "image/svg+xml; charset=utf-8",
                 "/app-hub-module.js": "application/javascript; charset=utf-8",
                 "/app-hub-manifest.json": "application/json; charset=utf-8",
+                "/media-control-020.js": "application/javascript; charset=utf-8",
             }[path]
             headers = {"Content-Type": content_type, "Cache-Control": "no-store"}
             self.send_exact_response(200, headers, body, case_id)

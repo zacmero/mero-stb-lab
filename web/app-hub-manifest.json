@@ -1,6 +1,6 @@
 {
-  "version": "usb-cap-012-v1",
-  "module": "/app-hub-module.js",
-  "cleanup": false,
+  "version": "media-control-020-same-origin-v6",
+  "module": "/media-control-020.js",
+  "cleanup": true,
   "poll_ms": 2000
 }

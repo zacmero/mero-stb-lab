@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     version="1.2" baseProfile="tiny" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#08131f"/>
+  <video id="movie" x="0" y="0" width="1280" height="600" begin="0s" xlink:href="__VIDEO019_INITIAL_MEDIA__"
+         preserveAspectRatio="xMidYMid meet"/>
+  <rect x="0" y="600" width="1280" height="120" fill="#101d2b"/>
+  <text id="title" x="96" y="630" fill="#ffffff" font-size="26"
+        font-family="sans-serif">__VIDEO019_INITIAL_TITLE__</text>
+  <text id="status" x="96" y="668" fill="#b8c9d9" font-size="20"
+        font-family="sans-serif">UP/DOWN select, OK play. Cold boot exits this application.</text>
+  <script type="text/ecmascript"><![CDATA[
+    var host = "http://191.32.31.251";
+    var xlink = "http://www.w3.org/1999/xlink";
+    var videos = [], selected = 0;
+    var movie = document.getElementById("movie");
+    function text(id, value) {
+      try {
+        var node = document.getElementById(id);
+        node.firstChild.data = String(value);
+        report("text." + id, String(node.firstChild.data));
+      } catch (error) { report("text.error", id + ":" + error); }
+    }
+    function report(key, value) {
+      try { getURL(host + "/video019/report?key=" + encodeURIComponent(key) +
+        "&value=" + encodeURIComponent(String(value)), function(){}); } catch (ignored) {}
+    }
+    function show() {
+      if (!videos.length) { text("title", "No videos in /home/zacmero/Videos"); return; }
+      text("title", (selected + 1) + "/" + videos.length + "  " + videos[selected].title);
+    }
+    function play() {
+      var item;
+      if (!videos.length) { return; }
+      item = videos[selected];
+      show();
+      text("status", "Requesting video; watch for moving picture and sound.");
+      report("play.request", item.id + ":" + item.title);
+      try {
+        movie.setAttributeNS(xlink, "href", host + "/video019/media/" + item.id);
+        report("video.href", movie.getAttributeNS(xlink, "href"));
+        report("video.node", String(movie));
+        report("video.beginElement.type", typeof movie.beginElement);
+        if (typeof movie.beginElement == "function") {
+          movie.beginElement();
+          report("video.beginElement", "called");
+        } else {
+          report("video.beginElement", "missing");
+        }
+      } catch (error) {
+        report("video.error", String(error));
+        text("status", "Playback call failed: " + error);
+      }
+    }
+    function loadLibrary() {
+      var request = new XMLHttpRequest();
+      request.onreadystatechange = function() {
+        if (request.readyState != 4) { return; }
+        try {
+          if (request.status != 200) { throw "HTTP " + request.status; }
+          videos = JSON.parse(request.responseText);
+          report("library.count", videos.length);
+          show();
+          if (videos.length) { play(); }
+        } catch (error) {
+          report("library.error", String(error));
+          text("title", "Video library unavailable");
+          text("status", String(error));
+        }
+      };
+      request.open("GET", host + "/video019/list?t=" + (new Date().getTime()), true);
+      request.send(null);
+    }
+    function key(event) {
+      var code = event.keyCode || event.which || 0;
+      report("key.code", code);
+      if (!videos.length) { return; }
+      if (code == 38 || code == 37) { selected = (selected + videos.length - 1) % videos.length; show(); }
+      else if (code == 40 || code == 39) { selected = (selected + 1) % videos.length; show(); }
+      else if (code == 13) { play(); }
+    }
+    try {
+      movie.addEventListener("beginEvent", function(){ report("video.beginEvent", "received"); }, false);
+      movie.addEventListener("endEvent", function(){ report("video.endEvent", "received"); }, false);
+      movie.addEventListener("error", function(){ report("video.errorEvent", "received"); }, false);
+      document.addEventListener("keydown", key, false);
+      if (typeof document.documentElement.focus == "function") document.documentElement.focus();
+    } catch (error) { report("setup.error", String(error)); }
+    report("control.loaded", "true");
+    loadLibrary();
+  ]]></script>
+</svg>

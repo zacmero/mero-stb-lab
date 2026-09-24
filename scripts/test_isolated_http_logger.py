@@ -93,6 +93,17 @@ class ResponseProfileTest(unittest.TestCase):
             )
             self.assertEqual((status, body), (200, b"<svg>control</svg>\n"))
 
+            (root / "video019.svg").write_bytes(b"<svg>video</svg>\n")
+            server.profile = "video019"
+            status, headers, body = InterfaceHTTPServer.response_for(
+                server, "GET", "/bussola/redirect?type=vod"
+            )
+            self.assertEqual((status, headers["Location"], body), (302, "/video019.svg", b""))
+            status, headers, body = InterfaceHTTPServer.response_for(
+                server, "GET", "/video019.svg"
+            )
+            self.assertEqual((status, headers["Content-Type"], body), (200, "image/svg+xml; charset=utf-8", b"<svg>video</svg>\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

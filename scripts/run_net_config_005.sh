@@ -73,6 +73,8 @@ cleanup() {
     if [ "${SYSCTLS_CHANGED}" -eq 1 ]; then
         sysctl -w "net.ipv4.conf.all.send_redirects=${ORIG_REDIRECT_ALL}" >/dev/null || failed=1
         sysctl -w "net.ipv4.conf.${IFACE}.send_redirects=${ORIG_REDIRECT_IF}" >/dev/null || failed=1
+        [ "$(sysctl -n net.ipv4.conf.all.send_redirects)" = "${ORIG_REDIRECT_ALL}" ] || failed=1
+        [ "$(sysctl -n "net.ipv4.conf.${IFACE}.send_redirects")" = "${ORIG_REDIRECT_IF}" ] || failed=1
     fi
 
     for pid in "${ARP_PID}" "${HTTP_PID}" "${TCPDUMP_PID}"; do
@@ -95,8 +97,8 @@ cleanup() {
 }
 
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -157,6 +159,10 @@ if ! [[ "${DURATION}" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 mkdir -p "${CAPTURES_DIR}"
+if iptables-save | grep -q 'MNC005'; then
+    echo "[-] Stale MNC005 firewall rules exist; stop and inspect exact owners before starting another run." >&2
+    exit 1
+fi
 
 echo "[*] Running read-only host-network preflight before ARP, iptables, or sysctl changes..."
 network_health_check "PREFLIGHT"
